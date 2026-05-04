@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 
 var SK = "cht_v2"; var DAYS = ["sun","mon","tue","wed","thu","fri","sat"]; var DL = ["Su","Mo","Tu","We","Th","Fr","Sa"]; var TIMES = ["morning","afternoon","evening","anytime"]; var TI = {morning:"🌅",afternoon:"☀️",evening:"🌙",anytime:"⏰"}; var EMJ = ["💪","📚","💧","🧘","📵","🏃","🥗","😴","🎯","🚴","🌿","🎨","💊","🛁","☕","🥤","🧠","❤️"]; var PRESETS = [{id:"daily",label:"Every day",days:["sun","mon","tue","wed","thu","fri","sat"]},{id:"weekdays",label:"Weekdays",days:["mon","tue","wed","thu","fri"]},{id:"weekends",label:"Weekends",days:["sat","sun"]}]; var BLANK = {name:"",emoji:"🎯",freq:["sun","mon","tue","wed","thu","fri","sat"],time:"morning",notes:"",target:1}; var DEF_G = {water:{min:1,norm:3,max:4},sleep:{min:6,norm:8,max:10},calories:{min:1200,norm:2000,max:2800}};
 
