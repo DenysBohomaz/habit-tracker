@@ -33,7 +33,7 @@ var I18N = {
     habitDetails:"Habit details",
   },
   uk: {
-    hello:"Привіт, Чемпіоне",today:"Сьогодні",calendar:"Календар",analytics:"Аналітика",settings:"Налаштування",
+    hello:"Привіт, Королю",today:"Сьогодні",calendar:"Календар",analytics:"Аналітика",settings:"Налаштування",
     sleep:"Сон",water:"Вода",calories:"Калорії",addNote:"Додати нотатку",habitTracking:"Трекінг звичок",
     done:"виконано",of:"з",noHabits:"Немає звичок на сьогодні.",enterHrs:"введіть години",goal:"Норма",left:"залишилось",norm:"норма",log:"запис",
     overall:"Загалом",noSched:"Немає запланованих звичок.",dayNote:"Як ваш день?",
