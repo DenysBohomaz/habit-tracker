@@ -105,7 +105,7 @@ function initSt(){
     water:(s&&s.water)||{},
     sleep:(s&&s.sleep)||{},
     calories:(s&&s.calories)||{},
-    goals:(s&&s.goals)||{water:{min:1,norm:3,max:4},sleep:{min:6,norm:8,max:10},calories:{min:1200,norm:2000,max:2800},steps:{min:5000,norm:8000,max:15000}},
+    goals:Object.assign({water:{min:1,norm:3,max:4},sleep:{min:6,norm:8,max:10},calories:{min:1200,norm:2000,max:2800},steps:{min:5000,norm:8000,max:15000}},(s&&s.goals)||{}),
     stepsLog:(s&&s.stepsLog)||{},
     lang:(s&&s.lang)||"en",
     theme:(s&&s.theme)||"morning",
