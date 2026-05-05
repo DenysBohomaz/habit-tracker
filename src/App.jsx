@@ -116,6 +116,7 @@ function initSt(){
     counts:(s&&s.counts)||{},
     checked:(s&&s.checked)||{},
     dayNotes:(s&&s.dayNotes)||{},
+    dayNotesTime:(s&&s.dayNotesTime)||{},
     water:(s&&s.water)||{},
     sleep:(s&&s.sleep)||{},
     calories:(s&&s.calories)||{},
@@ -267,10 +268,10 @@ export default function App(){
   function saveTaskEdit(id,updates,list){if(updates.text&&!updates.text.trim())return;var u=Object.assign({},updates);if(u.text)u.text=u.text.trim();setSt(function(s){var key=list==="later"?"laterTasks":"tasks";var arr=s[key].map(function(tk){return tk.id===id?Object.assign({},tk,u):tk;});var r=Object.assign({},s);r[key]=arr;return r;});}
   function requestNotifPermission(){if("Notification" in window&&Notification.permission==="default"){Notification.requestPermission();}}
   function setSteps(v){var raw=parseInt(v),tod=TODAY;setSt(function(s){var sl=Object.assign({},s.stepsLog||{});sl[tod]=isNaN(raw)||raw<0?0:Math.min(STP_X,raw);return Object.assign({},s,{stepsLog:sl});});}
-  function setDayNote(date,v){setSt(function(s){var d=Object.assign({},s.dayNotes);d[date]=v;return Object.assign({},s,{dayNotes:d});});}
+  function setDayNote(date,v){setSt(function(s){var d=Object.assign({},s.dayNotes);var dt=Object.assign({},s.dayNotesTime||{});d[date]=v;if(v&&v.trim())dt[date]=Date.now();else delete dt[date];return Object.assign({},s,{dayNotes:d,dayNotesTime:dt});});}
   function addW(d){var next=Math.max(0,Math.min(WX,Math.round((wl+d)*10)/10)),tod=TODAY;setSt(function(s){var w=Object.assign({},s.water);w[tod]=next;return Object.assign({},s,{water:w});});}
   function addCal(v){var tod=TODAY;setSt(function(s){var c=Object.assign({},s.calories);c[tod]=Math.max(0,(c[tod]||0)+v);return Object.assign({},s,{calories:c});});}
-  function setNote(v){var tod=TODAY;setSt(function(s){var d=Object.assign({},s.dayNotes);d[tod]=v;return Object.assign({},s,{dayNotes:d});});}
+  function setNote(v){var tod=TODAY;setSt(function(s){var d=Object.assign({},s.dayNotes);var dt=Object.assign({},s.dayNotesTime||{});d[tod]=v;if(v&&v.trim())dt[tod]=Date.now();else delete dt[tod];return Object.assign({},s,{dayNotes:d,dayNotesTime:dt});});}
   function setSleep(v){var raw=parseFloat(v),cap=st.goals.sleep.max,val=isNaN(raw)?"":String(Math.min(cap,raw)),tod=TODAY;setSt(function(s){var sl=Object.assign({},s.sleep);sl[tod]=val;return Object.assign({},s,{sleep:sl});});}
   function saveGoals(key,draft){setSt(function(s){var g=Object.assign({},s.goals);g[key]=Object.assign({},draft);return Object.assign({},s,{goals:g});});mu({sPanel:null,gDraft:null});}
   function applyCal(r){var wz=ui.wiz;setSt(function(s){var g=Object.assign({},s.goals);g.calories={min:r.min,norm:r.norm,max:r.max};var cwd={gender:wz.gender,W:wz.W,H:wz.H,A:wz.A,goal:wz.goal,act:wz.act};return Object.assign({},s,{goals:g,calWizData:cwd});});mu({wiz:null});}
@@ -829,21 +830,26 @@ export default function App(){
                   var jlabel=jd.toLocaleDateString(st.lang==="uk"?"uk-UA":"en-US",{weekday:"short",day:"numeric",month:"short"});
                   var isToday=k===TODAY;
                   var note=st.dayNotes[k]||"";
+                  var noteTs=st.dayNotesTime&&st.dayNotesTime[k];
+                  var tsLabel=noteTs?(function(){var d=new Date(noteTs);return d.toLocaleTimeString(st.lang==="uk"?"uk-UA":"en-US",{hour:"2-digit",minute:"2-digit"});})():null;
                   var isEditing=jed===k;
                   return(
                     <Card key={k} s={{marginBottom:10,padding:"12px 14px"}}>
                       <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:isEditing||note?8:0}}>
                         {isToday&&<span style={{fontSize:9,fontWeight:700,color:green,background:greenBg,padding:"1px 6px",borderRadius:8,border:"1px solid "+greenBo,flexShrink:0}}>●</span>}
-                        <p style={{fontSize:13,fontWeight:700,color:isToday?textMain:textSub,margin:0,flex:1}}>{jlabel}</p>
+                        <div style={{flex:1}}>
+                          <p style={{fontSize:13,fontWeight:700,color:isToday?textMain:textSub,margin:0}}>{jlabel}</p>
+                          {note&&tsLabel&&<p style={{fontSize:10,color:textLight,margin:"1px 0 0"}}>🕐 {tsLabel}</p>}
+                        </div>
                         {!isEditing&&(
-                          <button onClick={function(){mu({journalEditDay:k,journalEditText:note});}} style={{background:"transparent",border:"1px solid "+border,borderRadius:8,color:note?green:textLight,fontSize:12,cursor:"pointer",padding:"3px 10px",fontFamily:"inherit"}}>
-                            {note?"✎":"＋"}
+                          <button onClick={function(){mu({journalEditDay:k,journalEditText:note});}} style={{background:"transparent",border:"1px solid "+(note?green:border),borderRadius:8,color:note?green:textLight,fontSize:12,cursor:"pointer",padding:"3px 10px",fontFamily:"inherit"}}>
+                            {note?"✎ "+t.edit:"＋"}
                           </button>
                         )}
                       </div>
                       {isEditing?(
                         <div>
-                          <textarea autoFocus value={ui.journalEditText} onChange={function(e){mu({journalEditText:e.target.value});}} rows={3} style={{width:"100%",fontSize:13,padding:"8px 10px",borderRadius:8,border:"1px solid "+border,background:darkBg,color:textMain,fontFamily:"inherit",outline:"none",resize:"none",lineHeight:1.6,boxSizing:"border-box"}}/>
+                          <textarea autoFocus value={ui.journalEditText} onChange={function(e){mu({journalEditText:e.target.value});}} rows={4} style={{width:"100%",fontSize:13,padding:"8px 10px",borderRadius:8,border:"1px solid "+border,background:darkBg,color:textMain,fontFamily:"inherit",outline:"none",resize:"none",lineHeight:1.6,boxSizing:"border-box"}}/>
                           <div style={{display:"flex",gap:8,marginTop:6}}>
                             <button onClick={function(){mu({journalEditDay:null,journalEditText:""}); }} style={{flex:1,padding:"8px",borderRadius:8,border:"1px solid "+border,background:"transparent",color:textSub,fontSize:13,cursor:"pointer",fontFamily:"inherit"}}>{t.cancel}</button>
                             <button onClick={function(){setDayNote(k,ui.journalEditText);mu({journalEditDay:null,journalEditText:""}); }} style={{flex:1,padding:"8px",borderRadius:8,border:"none",background:textMain,color:card,fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>{t.save}</button>
