@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useLayoutEffect, useRef } from "react";
 
 var SK = "cht_v2"; var DAYS = ["sun","mon","tue","wed","thu","fri","sat"]; var DL = ["Su","Mo","Tu","We","Th","Fr","Sa"]; var TIMES = ["morning","afternoon","evening","anytime"]; var TI = {morning:"🌅",afternoon:"☀️",evening:"🌙",anytime:"⏰"}; var EMJ = ["💪","📚","💧","🧘","📵","🏃","🥗","😴","🎯","🚴","🌿","🎨","💊","🛁","☕","🥤","🧠","❤️"]; var PRESETS = [{id:"daily",label:"Every day",days:["sun","mon","tue","wed","thu","fri","sat"]},{id:"weekdays",label:"Weekdays",days:["mon","tue","wed","thu","fri"]},{id:"weekends",label:"Weekends",days:["sat","sun"]}]; var BLANK = {name:"",emoji:"🎯",freq:["sun","mon","tue","wed","thu","fri","sat"],time:"morning",notes:"",target:1}; var DEF_G = {water:{min:1,norm:3,max:4},sleep:{min:6,norm:8,max:10},calories:{min:1200,norm:2000,max:2800}};
 
@@ -38,6 +38,7 @@ var I18N = {
     wRecommended:"Recommended",wCustom:"Custom",wFormulaTitle:"Based on your body weight",
     wFormulaDesc:"Weight × 30–35 ml/kg",wWorkoutBonus:"+0.3 L (workout habit)",wSummerBonus:"+0.5 L (summer months)",
     wNoWeight:"Enter your weight in the Calories calculator to get a personalized recommendation.",wApplyRec:"Apply recommendation",
+    saveToJournal:"Save to journal",
     wLow:"Low",wMinimum:"Minimum",wNorm:"Norm",wLowDesc:"20 ml/kg",wMinDesc:"20–25 ml/kg",wNormDesc:"30–35 ml/kg",
     sectionNorms:"Norms",sectionSystem:"System",
     profGender:"Gender",profAge:"Age",profWeight:"Weight",profHeight:"Height",profGoal:"Goal",
@@ -78,6 +79,7 @@ var I18N = {
     wRecommended:"Рекомендовано",wCustom:"Власне",wFormulaTitle:"На основі вашої ваги",
     wFormulaDesc:"Вага × 30–35 мл/кг",wWorkoutBonus:"+0.3 Л (звичка тренування)",wSummerBonus:"+0.5 Л (літні місяці)",
     wNoWeight:"Введіть вашу вагу в калькуляторі калорій, щоб отримати персональну рекомендацію.",wApplyRec:"Застосувати рекомендацію",
+    saveToJournal:"Зберегти в журнал",
     wLow:"Низький",wMinimum:"Мінімум",wNorm:"Норма",wLowDesc:"20 мл/кг",wMinDesc:"20–25 мл/кг",wNormDesc:"30–35 мл/кг",
     sectionNorms:"Норми",sectionSystem:"Системні налаштування",
     profGender:"Стать",profAge:"Вік",profWeight:"Вага",profHeight:"Зріст",profGoal:"Ціль",
@@ -131,13 +133,17 @@ function initSt(){
     tags:(s&&s.tags)||[],
   };
 }
-function initUi(){return{tab:"today",aTab:"general",yr:new Date().getFullYear(),mo:new Date().getMonth(),pDay:null,editH:null,detH:null,detFrom:null,form:Object.assign({},BLANK),thumb:{},confetti:false,hPopup:null,calPop:false,calIn:"",calMode:"+",sPanel:null,gDraft:null,wiz:null,taskInput:"",taskDragIdx:null,taskDragOver:null,taskDragList:null,taskPopup:null,taskEdit:null,activeTag:null,tagInput:"",showTagInput:false,taskDeleteConfirm:null,journalFilter:"week",journalFrom:"",journalTo:"",journalEditDay:null,journalEditText:"",gMode:"recommended"};}
+function initUi(){return{tab:"today",aTab:"general",yr:new Date().getFullYear(),mo:new Date().getMonth(),pDay:null,editH:null,detH:null,detFrom:null,form:Object.assign({},BLANK),thumb:{},confetti:false,hPopup:null,calPop:false,calIn:"",calMode:"+",sPanel:null,gDraft:null,wiz:null,taskInput:"",taskDragIdx:null,taskDragOver:null,taskDragList:null,taskPopup:null,taskEdit:null,activeTag:null,tagInput:"",showTagInput:false,taskDeleteConfirm:null,journalFilter:"week",journalFrom:"",journalTo:"",journalEditDay:null,journalEditIdx:null,journalEditText:"",gMode:"recommended",reflectionDraft:"",reflectionKey:0,showDone:false};}
 
 export default function App(){
   var st0=useState(initSt),st=st0[0],setSt=st0[1];
   var ui0=useState(initUi),ui=ui0[0],setUi=ui0[1];
   var TODAY=todayKey();
   var reminderTimers=useRef({});
+  var cursorSave=useRef(null);
+  var reflDraftRef=useRef(null);
+  var journalTextRef=useRef(null);
+  useLayoutEffect(function(){var c=cursorSave.current;if(c&&c.el){try{c.el.setSelectionRange(c.start,c.end);}catch(ex){}cursorSave.current=null;}});
   useEffect(function(){saveLS(st);},[st]);
   useEffect(function(){
     Object.values(reminderTimers.current).forEach(clearTimeout);
@@ -268,6 +274,9 @@ export default function App(){
   function saveTaskEdit(id,updates,list){if(updates.text&&!updates.text.trim())return;var u=Object.assign({},updates);if(u.text)u.text=u.text.trim();setSt(function(s){var key=list==="later"?"laterTasks":"tasks";var arr=s[key].map(function(tk){return tk.id===id?Object.assign({},tk,u):tk;});var r=Object.assign({},s);r[key]=arr;return r;});}
   function requestNotifPermission(){if("Notification" in window&&Notification.permission==="default"){Notification.requestPermission();}}
   function setSteps(v){var raw=parseInt(v),tod=TODAY;setSt(function(s){var sl=Object.assign({},s.stepsLog||{});sl[tod]=isNaN(raw)||raw<0?0:Math.min(STP_X,raw);return Object.assign({},s,{stepsLog:sl});});}
+  function getDayEntries(date){var raw=st.dayNotes[date];if(!raw)return[];if(typeof raw==="string"){return raw.trim()?[{text:raw,time:(st.dayNotesTime&&st.dayNotesTime[date])||null}]:[];}return raw;}
+  function addDayEntry(date,text){if(!text||!text.trim())return;setSt(function(s){var d=Object.assign({},s.dayNotes);var raw=d[date];var entries;if(!raw)entries=[];else if(typeof raw==="string")entries=raw.trim()?[{text:raw,time:(s.dayNotesTime&&s.dayNotesTime[date])||null}]:[];else entries=raw.slice();entries=entries.concat([{text:text.trim(),time:Date.now()}]);d[date]=entries;return Object.assign({},s,{dayNotes:d});});}
+  function editDayEntry(date,idx,text){setSt(function(s){var d=Object.assign({},s.dayNotes);var raw=d[date];var entries;if(!raw)return s;if(typeof raw==="string")entries=raw.trim()?[{text:raw,time:(s.dayNotesTime&&s.dayNotesTime[date])||null}]:[];else entries=raw.slice();if(idx<0||idx>=entries.length)return s;if(!text||!text.trim()){entries.splice(idx,1);}else{entries[idx]=Object.assign({},entries[idx],{text:text.trim()});}if(entries.length===0)delete d[date];else d[date]=entries;return Object.assign({},s,{dayNotes:d});});}
   function setDayNote(date,v){setSt(function(s){var d=Object.assign({},s.dayNotes);var dt=Object.assign({},s.dayNotesTime||{});d[date]=v;if(v&&v.trim())dt[date]=Date.now();else delete dt[date];return Object.assign({},s,{dayNotes:d,dayNotesTime:dt});});}
   function addW(d){var next=Math.max(0,Math.min(WX,Math.round((wl+d)*10)/10)),tod=TODAY;setSt(function(s){var w=Object.assign({},s.water);w[tod]=next;return Object.assign({},s,{water:w});});}
   function addCal(v){var tod=TODAY;setSt(function(s){var c=Object.assign({},s.calories);c[tod]=Math.max(0,(c[tod]||0)+v);return Object.assign({},s,{calories:c});});}
@@ -307,6 +316,9 @@ export default function App(){
   CSS+="input[type=range]{-webkit-appearance:none;width:100%;height:6px;border-radius:99px;outline:none;cursor:pointer;}";
   CSS+="input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:22px;height:22px;border-radius:50%;background:#111827;cursor:pointer;}";
   CSS+="input[type=range]::-moz-range-thumb{width:22px;height:22px;border-radius:50%;background:#111827;cursor:pointer;border:none;}";
+  CSS+="@keyframes wkBob{0%,100%{transform:translateY(0)}50%{transform:translateY(-2px)}}";
+  CSS+="@keyframes wkPoseA{0%,49%{opacity:1}50%,100%{opacity:0}}";
+  CSS+="@keyframes wkPoseB{0%,49%{opacity:0}50%,100%{opacity:1}}";
 
   var PRESETS_L=[{id:"daily",label:t.everyDay,days:["sun","mon","tue","wed","thu","fri","sat"]},{id:"weekdays",label:t.weekdays,days:["mon","tue","wed","thu","fri"]},{id:"weekends",label:t.weekends,days:["sat","sun"]}];
 
@@ -329,7 +341,7 @@ export default function App(){
         </Card>
         <Card s={{marginBottom:16}}>
           <p style={{fontSize:12,fontWeight:600,color:textSub,margin:"0 0 8px",textTransform:"uppercase",letterSpacing:"0.05em"}}>{t.notes}</p>
-          <textarea value={detH.notes} onChange={function(e){var v=e.target.value;setSt(function(s){var h2=s.habits.map(function(h){return h.id===detH.id?Object.assign({},h,{notes:v}):h;});return Object.assign({},s,{habits:h2});});}} placeholder="..." rows={5} style={{width:"100%",resize:"vertical",fontSize:14,background:"transparent",border:"none",outline:"none",color:textMain,lineHeight:1.7,boxSizing:"border-box"}}/>
+          <textarea key={"dn_"+detH.id} defaultValue={detH.notes||""} onBlur={function(e){var v=e.target.value;setSt(function(s){var h2=s.habits.map(function(h){return h.id===detH.id?Object.assign({},h,{notes:v}):h;});return Object.assign({},s,{habits:h2});});}} placeholder="..." rows={5} style={{width:"100%",resize:"vertical",fontSize:14,background:"transparent",border:"none",outline:"none",color:textMain,lineHeight:1.7,boxSizing:"border-box"}}/>
         </Card>
         <div style={{display:"flex",gap:10}}>
           <Btn onClick={function(){mu({detH:null});}} v="pri" s={{flex:1}}>{t.save}</Btn>
@@ -381,7 +393,7 @@ export default function App(){
         </Card>
         <Card s={{marginBottom:16}}>
           <p style={{fontSize:12,fontWeight:600,color:textSub,margin:"0 0 8px",textTransform:"uppercase",letterSpacing:"0.04em"}}>{t.notes}</p>
-          <textarea value={ui.form.notes} onChange={function(e){var v=e.target.value;mu({form:setK(ui.form,"notes",v)});}} placeholder={t.optNotes} rows={3} style={{width:"100%",resize:"vertical",fontSize:14,background:"transparent",border:"none",outline:"none",color:textMain,lineHeight:1.6,boxSizing:"border-box"}}/>
+          <textarea key={"hn_"+(ui.form.id||"new")} defaultValue={ui.form.notes||""} onBlur={function(e){mu({form:setK(ui.form,"notes",e.target.value)});}} placeholder={t.optNotes} rows={3} style={{width:"100%",resize:"vertical",fontSize:14,background:"transparent",border:"none",outline:"none",color:textMain,lineHeight:1.6,boxSizing:"border-box"}}/>
         </Card>
         <div style={{display:"flex",gap:10}}>
           <Btn onClick={function(){saveH(ui.form.id?ui.form:Object.assign({},ui.form,{id:null}));}} v="pri" s={{flex:1}}>{t.saveHabit}</Btn>
@@ -488,25 +500,60 @@ export default function App(){
               <Card s={{padding:"10px 6px",textAlign:"center",display:"flex",flexDirection:"column",alignItems:"center"}}>
                 <p style={{fontSize:9,fontWeight:700,color:textSub,margin:"0 0 2px",textTransform:"uppercase",letterSpacing:"0.05em"}}>{t.steps}</p>
                 <p style={{fontSize:10,fontWeight:700,color:stepsCol,margin:"0 0 4px",lineHeight:1}}>{stepsT.toLocaleString()}/{(STP_N/1000).toFixed(0)}k</p>
-                <div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center"}}>
-                  <svg viewBox="0 0 44 64" width="32" height="48">
-                    <circle cx="22" cy="6" r="5.5" fill={stepsCol||textSub}/>
-                    <line x1="22" y1="11" x2="22" y2="34" stroke={stepsCol||textSub} strokeWidth="3.5" strokeLinecap="round"/>
-                    <line x1="22" y1="20" x2="10" y2="30" stroke={stepsCol||textSub} strokeWidth="3" strokeLinecap="round"/>
-                    <line x1="22" y1="20" x2="34" y2="26" stroke={stepsCol||textSub} strokeWidth="3" strokeLinecap="round"/>
-                    <line x1="22" y1="34" x2="13" y2="52" stroke={stepsCol||textSub} strokeWidth="3" strokeLinecap="round"/>
-                    <line x1="22" y1="34" x2="31" y2="52" stroke={stepsCol||textSub} strokeWidth="3" strokeLinecap="round"/>
-                    <line x1="13" y1="52" x2="7"  y2="56" stroke={stepsCol||textSub} strokeWidth="2.5" strokeLinecap="round"/>
-                    <line x1="31" y1="52" x2="37" y2="56" stroke={stepsCol||textSub} strokeWidth="2.5" strokeLinecap="round"/>
-                  </svg>
+                <div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",width:"100%"}}>
+                  {(function(){
+                    var spPct=Math.min(stepsT/STP_N,1);
+                    var spX=10+spPct*62;
+                    var walking=stepsT>0;
+                    var col=stepsCol||textSub;
+                    var aStyle=function(name,delay){return walking?{animation:name+" 0.44s "+(delay||"0s")+" linear infinite"}:{};};
+                    return(
+                      <svg viewBox="0 0 88 58" width="82" height="54" style={{overflow:"visible"}}>
+                        <line x1="6" y1="50" x2="82" y2="50" stroke={border} strokeWidth="2.5" strokeLinecap="round"/>
+                        <circle cx="6" cy="50" r="2.5" fill={col} opacity="0.35"/>
+                        <line x1="82" y1="43" x2="82" y2="50" stroke={stepsT>=STP_N?green:textLight} strokeWidth="1.5"/>
+                        <polygon points="82,43 90,46.5 82,50" fill={stepsT>=STP_N?green:textLight} opacity="0.65"/>
+                        {[0.25,0.5,0.75].map(function(p,i){return spPct>p?<circle key={i} cx={6+p*76} cy="50" r="2" fill={col} opacity="0.3"/>:null;})}
+                        <g style={{transform:"translate("+spX+"px,48px)",transition:"transform 0.7s cubic-bezier(0.34,1.56,0.64,1)"}}>
+                          <g style={walking?{animation:"wkBob 0.44s ease-in-out infinite"}:{}}>
+                            <circle cx="0" cy="-32" r="5.5" fill={col}/>
+                            <circle cx="-2" cy="-33" r="1" fill="rgba(255,255,255,0.75)"/>
+                            <circle cx="2" cy="-33" r="1" fill="rgba(255,255,255,0.75)"/>
+                            <line x1="0" y1="-26" x2="0" y2="-12" stroke={col} strokeWidth="3.5" strokeLinecap="round"/>
+                          </g>
+                          <g style={aStyle("wkPoseA")}>
+                            <line x1="0" y1="-22" x2="-9" y2="-28" stroke={col} strokeWidth="2.5" strokeLinecap="round"/>
+                            <line x1="0" y1="-22" x2="9" y2="-16" stroke={col} strokeWidth="2.5" strokeLinecap="round"/>
+                            <line x1="-2" y1="-12" x2="-9" y2="4" stroke={col} strokeWidth="3" strokeLinecap="round"/>
+                            <line x1="-9" y1="4" x2="-12" y2="8" stroke={col} strokeWidth="2.5" strokeLinecap="round"/>
+                            <line x1="2" y1="-12" x2="6" y2="4" stroke={col} strokeWidth="3" strokeLinecap="round"/>
+                            <line x1="6" y1="4" x2="10" y2="8" stroke={col} strokeWidth="2.5" strokeLinecap="round"/>
+                          </g>
+                          <g style={walking?aStyle("wkPoseB"):{opacity:0}}>
+                            <line x1="0" y1="-22" x2="-9" y2="-16" stroke={col} strokeWidth="2.5" strokeLinecap="round"/>
+                            <line x1="0" y1="-22" x2="9" y2="-28" stroke={col} strokeWidth="2.5" strokeLinecap="round"/>
+                            <line x1="-2" y1="-12" x2="-6" y2="4" stroke={col} strokeWidth="3" strokeLinecap="round"/>
+                            <line x1="-6" y1="4" x2="-10" y2="8" stroke={col} strokeWidth="2.5" strokeLinecap="round"/>
+                            <line x1="2" y1="-12" x2="9" y2="4" stroke={col} strokeWidth="3" strokeLinecap="round"/>
+                            <line x1="9" y1="4" x2="12" y2="8" stroke={col} strokeWidth="2.5" strokeLinecap="round"/>
+                          </g>
+                        </g>
+                      </svg>
+                    );
+                  })()}
                 </div>
                 <input type="number" min="0" max={STP_X} step="100" placeholder="0" value={stepsT||""} onChange={function(e){setSteps(e.target.value);}} style={{width:"100%",background:darkBg,border:"1px solid "+stepsCol,borderRadius:8,fontSize:12,fontWeight:700,color:stepsCol,textAlign:"center",padding:"4px 2px",fontFamily:"inherit",outline:"none",boxSizing:"border-box",marginTop:6}}/>
               </Card>
             </div>
 
             <div style={{border:"1px solid "+border,borderRadius:"12px",padding:"10px 14px",marginBottom:16,background:card}}>
-              <p style={{fontSize:11,fontWeight:600,color:textLight,margin:"0 0 4px",textTransform:"uppercase",letterSpacing:"0.06em",textAlign:"center"}}>📝 {t.addNote}</p>
-              <textarea placeholder={t.dayNote} value={st.dayNotes[TODAY]||""} onChange={function(e){setNote(e.target.value);}} rows={2} style={{width:"100%",resize:"none",fontSize:14,background:"transparent",border:"none",outline:"none",color:textMain,lineHeight:1.6,boxSizing:"border-box",textAlign:"center"}}/>
+              <p style={{fontSize:11,fontWeight:600,color:textLight,margin:"0 0 6px",textTransform:"uppercase",letterSpacing:"0.06em",textAlign:"center"}}>📝 {t.addNote}</p>
+              <textarea key={ui.reflectionKey||0} ref={reflDraftRef} placeholder={t.dayNote} defaultValue="" onInput={function(e){var has=!!e.target.value.trim();if(has&&!ui.reflectionDraft)mu({reflectionDraft:"1"});else if(!has&&ui.reflectionDraft)mu({reflectionDraft:""});}} rows={2} style={{width:"100%",resize:"none",fontSize:14,background:"transparent",border:"none",outline:"none",color:textMain,lineHeight:1.6,boxSizing:"border-box",textAlign:"center"}}/>
+              {ui.reflectionDraft&&(
+                <button onClick={function(){var val=reflDraftRef.current?reflDraftRef.current.value.trim():"";if(!val)return;addDayEntry(TODAY,val);if(reflDraftRef.current)reflDraftRef.current.value="";mu({reflectionDraft:"",reflectionKey:(ui.reflectionKey||0)+1});}} style={{width:"100%",marginTop:8,padding:"9px",borderRadius:9,border:"none",background:textMain,color:card,fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>
+                  {t.saveToJournal}
+                </button>
+              )}
             </div>
 
             <p style={{fontSize:15,fontWeight:700,color:textMain,textAlign:"center",margin:"0 0 10px"}}>{t.habitTracking}</p>
@@ -552,8 +599,10 @@ export default function App(){
         {ui.tab==="tasks"&&(function(){
           var visibleTasks=ui.activeTag===null?st.tasks:st.tasks.filter(function(tk){return tk.tag===ui.activeTag;});
           var visibleLater=ui.activeTag===null?st.laterTasks:st.laterTasks.filter(function(tk){return tk.tag===ui.activeTag;});
-          var pinnedTasks=visibleTasks.filter(function(tk){return tk.pinned;});
-          var planTasks=visibleTasks.filter(function(tk){return !tk.pinned;});
+          var pinnedTasks=visibleTasks.filter(function(tk){return tk.pinned&&!tk.done;});
+          var planTasks=visibleTasks.filter(function(tk){return !tk.pinned&&!tk.done;});
+          var activeLater=visibleLater.filter(function(tk){return !tk.done;});
+          var doneTasks=visibleTasks.filter(function(tk){return tk.done;}).map(function(tk){return{tk:tk,list:"plan"};}).concat(visibleLater.filter(function(tk){return tk.done;}).map(function(tk){return{tk:tk,list:"later"};}))
           function score(tk){return Math.round((tk.importance*0.7+tk.urgency*0.3)*10)/10;}
           function ScoreBadge(p){var s=score(p.tk);var col=s>=4?red:s>=2.5?yellow:textSub;return <span style={{fontSize:10,fontWeight:700,color:col,background:col===red?redBg:col===yellow?yellowBg:darkBg,padding:"2px 6px",borderRadius:10,border:"1px solid "+(col===red?redBo:col===yellow?yellowBo:border),flexShrink:0}}>{s}</span>;}
           function TaskRow(p){
@@ -653,9 +702,9 @@ export default function App(){
               <div style={{display:"flex",gap:6,overflowX:"auto",marginBottom:12,paddingBottom:2}}>
                 <button onClick={function(){mu({activeTag:null});}} style={{flexShrink:0,padding:"5px 14px",borderRadius:20,border:"1.5px solid "+(ui.activeTag===null?textMain:border),background:ui.activeTag===null?textMain:card,color:ui.activeTag===null?card:textMain,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap"}}>{t.allTasks}</button>
                 {st.tags.map(function(tg){var active=ui.activeTag===tg.id;return(
-                  <div key={tg.id} style={{display:"flex",alignItems:"center",gap:0,flexShrink:0}}>
-                    <button onClick={function(){mu({activeTag:tg.id});}} style={{padding:"5px 10px",borderRadius:"20px 0 0 20px",border:"1.5px solid "+(active?textMain:border),borderRight:"none",background:active?textMain:card,color:active?card:textMain,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap"}}>{tg.name}</button>
-                    <button onClick={function(){deleteTag(tg.id);}} style={{padding:"5px 8px",borderRadius:"0 20px 20px 0",border:"1.5px solid "+(active?textMain:border),borderLeft:"none",background:active?textMain:card,color:active?card:textLight,fontSize:10,cursor:"pointer",fontFamily:"inherit",lineHeight:1}}>✕</button>
+                  <div key={tg.id} onClick={function(){mu({activeTag:tg.id});}} style={{display:"inline-flex",alignItems:"center",gap:4,flexShrink:0,padding:"5px 8px 5px 12px",borderRadius:20,border:"1.5px solid "+(active?textMain:border),background:active?textMain:card,cursor:"pointer",userSelect:"none"}}>
+                    <span style={{fontSize:12,fontWeight:600,color:active?card:textMain,whiteSpace:"nowrap"}}>{tg.name}</span>
+                    <span onClick={function(e){e.stopPropagation();deleteTag(tg.id);}} style={{fontSize:10,color:active?card:textLight,lineHeight:1,padding:"1px 3px",borderRadius:"50%",cursor:"pointer",opacity:0.7}}>✕</span>
                   </div>
                 );})}
                 {ui.showTagInput
@@ -703,9 +752,19 @@ export default function App(){
                 onDragOver={function(e){e.preventDefault();}}
                 onDrop={function(e){e.preventDefault();var fromList=e.dataTransfer.getData("tlist");if(fromList==="plan"){var fromId=parseInt(e.dataTransfer.getData("tid"));moveToLater(fromId);}}}
               >
-                {visibleLater.length===0&&<p style={{fontSize:13,color:textLight,textAlign:"center",padding:"12px 0"}}>–</p>}
-                {visibleLater.map(function(tk,i){return <TaskRow key={tk.id} tk={tk} list="later" idx={st.laterTasks.indexOf(tk)}/>;} )}
+                {activeLater.length===0&&<p style={{fontSize:13,color:textLight,textAlign:"center",padding:"12px 0"}}>–</p>}
+                {activeLater.map(function(tk,i){return <TaskRow key={tk.id} tk={tk} list="later" idx={st.laterTasks.indexOf(tk)}/>;} )}
               </div>
+              {doneTasks.length>0&&(
+                <div style={{marginTop:20}}>
+                  <button onClick={function(){mu({showDone:!ui.showDone});}} style={{display:"flex",alignItems:"center",gap:6,background:"transparent",border:"none",cursor:"pointer",padding:0,fontFamily:"inherit",marginBottom:8}}>
+                    <span style={{fontSize:11,fontWeight:700,color:green,textTransform:"uppercase",letterSpacing:"0.06em"}}>✓ Done</span>
+                    <span style={{fontSize:11,fontWeight:600,color:textLight,background:darkBg,border:"1px solid "+border,borderRadius:10,padding:"1px 7px"}}>{doneTasks.length}</span>
+                    <span style={{fontSize:11,color:textLight,marginLeft:2}}>{ui.showDone?"▲":"▼"}</span>
+                  </button>
+                  {ui.showDone&&doneTasks.map(function(item){return <TaskRow key={item.tk.id} tk={item.tk} list={item.list} idx={item.list==="later"?st.laterTasks.indexOf(item.tk):st.tasks.indexOf(item.tk)}/>;} )}
+                </div>
+              )}
               {ui.taskPopup&&(function(){
                 var popList=ui.taskPopup.list;
                 var popArr=popList==="later"?st.laterTasks:st.tasks;
@@ -724,8 +783,9 @@ export default function App(){
                     <p style={{fontSize:12,color:textSub,margin:"0 0 6px"}}>{t.editTask}</p>
                     <input value={draftText} onChange={function(e){mu({taskPopup:Object.assign({},ui.taskPopup,{draftText:e.target.value})});}} style={Object.assign({},fieldStyle,{fontSize:15,marginBottom:10})}/>
                     <textarea
-                      value={draftDesc}
-                      onChange={function(e){mu({taskPopup:Object.assign({},ui.taskPopup,{draftDesc:e.target.value})});}}
+                      key={"td_"+(ui.taskPopup&&ui.taskPopup.id)}
+                      defaultValue={draftDesc||""}
+                      onBlur={function(e){mu({taskPopup:Object.assign({},ui.taskPopup,{draftDesc:e.target.value})});}}
                       onInput={function(e){var el=e.target;el.style.height="auto";el.style.height=el.scrollHeight+"px";}}
                       placeholder={t.description+"..."}
                       rows={2}
@@ -794,7 +854,7 @@ export default function App(){
               jDates.reverse();
             }
           } else {
-            var allJK=Object.keys(st.dayNotes).filter(function(k){return !!(st.dayNotes[k]&&st.dayNotes[k].trim());});
+            var allJK=Object.keys(st.dayNotes).filter(function(k){var v=st.dayNotes[k];if(!v)return false;if(typeof v==="string")return !!v.trim();return Array.isArray(v)&&v.length>0;});
             var firstJ=allJK.slice().sort()[0];
             if(firstJ){
               jDates=[];var jd3=new Date(firstJ);
@@ -829,35 +889,49 @@ export default function App(){
                   var jd=new Date(k+"T12:00:00");
                   var jlabel=jd.toLocaleDateString(st.lang==="uk"?"uk-UA":"en-US",{weekday:"short",day:"numeric",month:"short"});
                   var isToday=k===TODAY;
-                  var note=st.dayNotes[k]||"";
-                  var noteTs=st.dayNotesTime&&st.dayNotesTime[k];
-                  var tsLabel=noteTs?(function(){var d=new Date(noteTs);return d.toLocaleTimeString(st.lang==="uk"?"uk-UA":"en-US",{hour:"2-digit",minute:"2-digit"});})():null;
-                  var isEditing=jed===k;
+                  var entries=getDayEntries(k);
+                  var hasEntries=entries.length>0;
                   return(
                     <Card key={k} s={{marginBottom:10,padding:"12px 14px"}}>
-                      <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:isEditing||note?8:0}}>
+                      <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:hasEntries?10:0}}>
                         {isToday&&<span style={{fontSize:9,fontWeight:700,color:green,background:greenBg,padding:"1px 6px",borderRadius:8,border:"1px solid "+greenBo,flexShrink:0}}>●</span>}
-                        <div style={{flex:1}}>
-                          <p style={{fontSize:13,fontWeight:700,color:isToday?textMain:textSub,margin:0}}>{jlabel}</p>
-                          {note&&tsLabel&&<p style={{fontSize:10,color:textLight,margin:"1px 0 0"}}>🕐 {tsLabel}</p>}
-                        </div>
-                        {!isEditing&&(
-                          <button onClick={function(){mu({journalEditDay:k,journalEditText:note});}} style={{background:"transparent",border:"1px solid "+(note?green:border),borderRadius:8,color:note?green:textLight,fontSize:12,cursor:"pointer",padding:"3px 10px",fontFamily:"inherit"}}>
-                            {note?"✎ "+t.edit:"＋"}
-                          </button>
-                        )}
+                        <p style={{flex:1,fontSize:13,fontWeight:700,color:isToday?textMain:textSub,margin:0}}>{jlabel}</p>
+                        <button onClick={function(){mu({journalEditDay:k,journalEditIdx:null,journalEditText:""}); }} style={{background:"transparent",border:"1px solid "+border,borderRadius:8,color:textLight,fontSize:13,cursor:"pointer",padding:"3px 10px",fontFamily:"inherit"}}>＋</button>
                       </div>
-                      {isEditing?(
-                        <div>
-                          <textarea autoFocus value={ui.journalEditText} onChange={function(e){mu({journalEditText:e.target.value});}} rows={4} style={{width:"100%",fontSize:13,padding:"8px 10px",borderRadius:8,border:"1px solid "+border,background:darkBg,color:textMain,fontFamily:"inherit",outline:"none",resize:"none",lineHeight:1.6,boxSizing:"border-box"}}/>
+                      {entries.map(function(entry,ei){
+                        var tsLabel=entry.time?(function(){var d=new Date(entry.time);return d.toLocaleTimeString(st.lang==="uk"?"uk-UA":"en-US",{hour:"2-digit",minute:"2-digit"});})():null;
+                        var isEditingThis=jed===k&&ui.journalEditIdx===ei;
+                        return(
+                          <div key={ei} style={{borderTop:ei===0&&hasEntries?"1px solid "+border:"none",paddingTop:ei===0?8:6,paddingBottom:6,borderBottom:ei<entries.length-1?"1px solid "+border:"none"}}>
+                            {isEditingThis?(
+                              <div>
+                                <textarea key={k+"_"+ei} ref={journalTextRef} autoFocus defaultValue={entry.text} rows={3} style={{width:"100%",fontSize:13,padding:"8px 10px",borderRadius:8,border:"1px solid "+border,background:darkBg,color:textMain,fontFamily:"inherit",outline:"none",resize:"none",lineHeight:1.6,boxSizing:"border-box"}}/>
+                                <div style={{display:"flex",gap:8,marginTop:6}}>
+                                  <button onClick={function(){mu({journalEditDay:null,journalEditIdx:null,journalEditText:""});}} style={{flex:1,padding:"7px",borderRadius:8,border:"1px solid "+border,background:"transparent",color:textSub,fontSize:12,cursor:"pointer",fontFamily:"inherit"}}>{t.cancel}</button>
+                                  <button onClick={function(){var v=journalTextRef.current?journalTextRef.current.value:"";editDayEntry(k,ei,v);mu({journalEditDay:null,journalEditIdx:null,journalEditText:""});}} style={{flex:1,padding:"7px",borderRadius:8,border:"none",background:textMain,color:card,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>{t.save}</button>
+                                </div>
+                              </div>
+                            ):(
+                              <div style={{display:"flex",alignItems:"flex-start",gap:8}}>
+                                <div style={{flex:1}}>
+                                  <p style={{fontSize:13,color:textMain,margin:0,lineHeight:1.6,whiteSpace:"pre-wrap"}}>{entry.text}</p>
+                                  {tsLabel&&<p style={{fontSize:10,color:textLight,margin:"3px 0 0"}}>🕐 {tsLabel}</p>}
+                                </div>
+                                <button onClick={function(){mu({journalEditDay:k,journalEditIdx:ei,journalEditText:entry.text});}} style={{background:"transparent",border:"1px solid "+border,borderRadius:7,color:textLight,fontSize:11,cursor:"pointer",padding:"2px 8px",fontFamily:"inherit",flexShrink:0,marginTop:2}}>✎</button>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                      {jed===k&&ui.journalEditIdx===null&&(
+                        <div style={{marginTop:hasEntries?8:0}}>
+                          <textarea key={k+"_new"} ref={journalTextRef} autoFocus defaultValue="" placeholder={t.dayNote} rows={3} style={{width:"100%",fontSize:13,padding:"8px 10px",borderRadius:8,border:"1px solid "+border,background:darkBg,color:textMain,fontFamily:"inherit",outline:"none",resize:"none",lineHeight:1.6,boxSizing:"border-box"}}/>
                           <div style={{display:"flex",gap:8,marginTop:6}}>
-                            <button onClick={function(){mu({journalEditDay:null,journalEditText:""}); }} style={{flex:1,padding:"8px",borderRadius:8,border:"1px solid "+border,background:"transparent",color:textSub,fontSize:13,cursor:"pointer",fontFamily:"inherit"}}>{t.cancel}</button>
-                            <button onClick={function(){setDayNote(k,ui.journalEditText);mu({journalEditDay:null,journalEditText:""}); }} style={{flex:1,padding:"8px",borderRadius:8,border:"none",background:textMain,color:card,fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>{t.save}</button>
+                            <button onClick={function(){mu({journalEditDay:null,journalEditIdx:null,journalEditText:""});}} style={{flex:1,padding:"7px",borderRadius:8,border:"1px solid "+border,background:"transparent",color:textSub,fontSize:12,cursor:"pointer",fontFamily:"inherit"}}>{t.cancel}</button>
+                            <button onClick={function(){var v=journalTextRef.current?journalTextRef.current.value:"";addDayEntry(k,v);mu({journalEditDay:null,journalEditIdx:null,journalEditText:""});}} style={{flex:1,padding:"7px",borderRadius:8,border:"none",background:textMain,color:card,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>{t.save}</button>
                           </div>
                         </div>
-                      ):note?(
-                        <p style={{fontSize:13,color:textMain,margin:0,lineHeight:1.6,whiteSpace:"pre-wrap"}}>{note}</p>
-                      ):null}
+                      )}
                     </Card>
                   );
                 })}
@@ -1012,7 +1086,7 @@ export default function App(){
                     var lbl=new Date(yr,mo,ui.pDay).toLocaleDateString("en-US",{weekday:"long",month:"long",day:"numeric"});
                     var fH=sched.filter(function(h){return hSt(h,key,st.counts)==="full";}),prtH=sched.filter(function(h){return hSt(h,key,st.counts)==="partial";}),mH=sched.filter(function(h){return hSt(h,key,st.counts)==="none";});
                     var ov=sched.length?Math.round(sched.reduce(function(s,h){return s+getPct(h,key,st.counts);},0)/sched.length):0;
-                    var dn=st.dayNotes[key]||"";
+                    var dn=getDayEntries(key);
                     function HR(rp){var p=getPct(rp.h,key,st.counts);return(
                       <div style={{padding:"8px 0",borderBottom:"1px solid "+border}}>
                         <div style={{display:"flex",alignItems:"center",gap:10}}>
@@ -1029,7 +1103,7 @@ export default function App(){
                           <p style={{fontSize:15,fontWeight:700,margin:0,color:textMain}}>{lbl}</p>
                           <IBtn onClick={function(){mu({pDay:null});}} sz={30}>&#x2715;</IBtn>
                         </div>
-                        {dn&&<div style={{background:greenBg,borderRadius:10,padding:"10px 14px",marginBottom:14,borderLeft:"3px solid "+green}}><p style={{fontSize:11,color:green,margin:"0 0 4px",fontWeight:700,textTransform:"uppercase",letterSpacing:"0.04em"}}>📝 {t.addNote}</p><p style={{fontSize:13,color:textMain,margin:0,lineHeight:1.6,whiteSpace:"pre-wrap"}}>{dn}</p></div>}
+                        {dn.length>0&&<div style={{background:greenBg,borderRadius:10,padding:"10px 14px",marginBottom:14,borderLeft:"3px solid "+green}}><p style={{fontSize:11,color:green,margin:"0 0 8px",fontWeight:700,textTransform:"uppercase",letterSpacing:"0.04em"}}>📝 {t.addNote}</p>{dn.map(function(entry,ei){var tsLabel=entry.time?(function(){var d=new Date(entry.time);return d.toLocaleTimeString(st.lang==="uk"?"uk-UA":"en-US",{hour:"2-digit",minute:"2-digit"});})():null;return(<div key={ei} style={{marginBottom:ei<dn.length-1?10:0}}><p style={{fontSize:13,color:textMain,margin:0,lineHeight:1.6,whiteSpace:"pre-wrap"}}>{entry.text}</p>{tsLabel&&<p style={{fontSize:10,color:green,opacity:0.7,margin:"2px 0 0"}}>🕐 {tsLabel}</p>}</div>);})}</div>}
                         {sched.length>0&&<div style={{marginBottom:14}}><div style={{display:"flex",justifyContent:"space-between",marginBottom:8}}><span style={{fontSize:13,color:textSub}}>{t.overall}</span><span style={{fontSize:15,fontWeight:700,color:ov===100?green:ov===0?red:yellow}}>{ov}%</span></div><PBar pct={ov} col={ov===100?green:ov===0?red:"#f59e0b"}/></div>}
                         {sched.length===0?<p style={{fontSize:14,color:textSub,textAlign:"center",padding:"20px 0"}}>{t.noSched}</p>:(
                           <div>
