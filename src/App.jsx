@@ -38,6 +38,10 @@ var I18N = {
     wRecommended:"Recommended",wCustom:"Custom",wFormulaTitle:"Based on your body weight",
     wFormulaDesc:"Weight × 30–35 ml/kg",wWorkoutBonus:"+0.3 L (workout habit)",wSummerBonus:"+0.5 L (summer months)",
     wNoWeight:"Enter your weight in the Calories calculator to get a personalized recommendation.",wApplyRec:"Apply recommendation",
+    wLow:"Low",wMinimum:"Minimum",wNorm:"Norm",wLowDesc:"20 ml/kg",wMinDesc:"20–25 ml/kg",wNormDesc:"30–35 ml/kg",
+    sectionNorms:"Norms",sectionSystem:"System",
+    profGender:"Gender",profAge:"Age",profWeight:"Weight",profHeight:"Height",profGoal:"Goal",
+    profMale:"Male",profFemale:"Female",profNoData:"Not set",
   },
   uk: {
     hello:"Привіт",helloDefault:"Чемпіоне",profile:"Профіль",profileName:"Ваше ім'я",profilePlaceholder:"Введіть ваше ім'я...",today:"Сьогодні",calendar:"Календар",analytics:"Аналітика",settings:"Налаштування",
@@ -74,6 +78,10 @@ var I18N = {
     wRecommended:"Рекомендовано",wCustom:"Власне",wFormulaTitle:"На основі вашої ваги",
     wFormulaDesc:"Вага × 30–35 мл/кг",wWorkoutBonus:"+0.3 Л (звичка тренування)",wSummerBonus:"+0.5 Л (літні місяці)",
     wNoWeight:"Введіть вашу вагу в калькуляторі калорій, щоб отримати персональну рекомендацію.",wApplyRec:"Застосувати рекомендацію",
+    wLow:"Низький",wMinimum:"Мінімум",wNorm:"Норма",wLowDesc:"20 мл/кг",wMinDesc:"20–25 мл/кг",wNormDesc:"30–35 мл/кг",
+    sectionNorms:"Норми",sectionSystem:"Системні налаштування",
+    profGender:"Стать",profAge:"Вік",profWeight:"Вага",profHeight:"Зріст",profGoal:"Ціль",
+    profMale:"Чоловік",profFemale:"Жінка",profNoData:"Не вказано",
   }
 };
 
@@ -395,9 +403,9 @@ export default function App(){
             <p style={{fontSize:12,color:textSub,margin:0}}>{dLabel}</p>
           </div>
           <div style={{display:"flex",borderBottom:"1px solid "+border,margin:"0 -20px"}}>
-            {["today","tasks","analytics","settings"].map(function(tab,i){
-              var lbl=tab==="today"?t.today:tab==="tasks"?t.tasks:tab==="analytics"?t.analytics:t.settings;
-              return <button key={tab} onClick={function(){mu({tab:tab});}} style={{flex:i===3?0:1,marginLeft:i===3?"auto":0,background:"transparent",border:"none",borderBottom:ui.tab===tab?"2px solid "+textMain:"2px solid transparent",padding:"10px 12px",fontWeight:ui.tab===tab?600:400,color:ui.tab===tab?textMain:textSub,cursor:"pointer",fontSize:13,marginBottom:-1,whiteSpace:"nowrap",fontFamily:"inherit"}}>{lbl}</button>;
+            {["today","tasks","journal","analytics","settings"].map(function(tab){
+              var lbl=tab==="today"?t.today:tab==="tasks"?t.tasks:tab==="journal"?t.journal:tab==="analytics"?t.analytics:t.settings;
+              return <button key={tab} onClick={function(){mu({tab:tab});}} style={{flex:1,background:"transparent",border:"none",borderBottom:ui.tab===tab?"2px solid "+textMain:"2px solid transparent",padding:"10px 4px",fontWeight:ui.tab===tab?600:400,color:ui.tab===tab?textMain:textSub,cursor:"pointer",fontSize:11,marginBottom:-1,whiteSpace:"nowrap",fontFamily:"inherit"}}>{lbl}</button>;
             })}
           </div>
         </div>
@@ -766,6 +774,98 @@ export default function App(){
           );
         })()}
 
+        {ui.tab==="journal"&&(function(){
+          var jf=ui.journalFilter||"week";
+          var jFrom=ui.journalFrom||"";
+          var jTo=ui.journalTo||TODAY;
+          var jDates;
+          if(jf==="day"){
+            jDates=[TODAY];
+          } else if(jf==="week"){
+            jDates=wkK.slice().sort().reverse();
+          } else if(jf==="month"){
+            jDates=moK.slice().sort().reverse();
+          } else if(jf==="custom"){
+            jDates=[];
+            if(jFrom){
+              var jd2=new Date(jFrom),jTo2=jTo||TODAY;
+              while(isoD(jd2)<=jTo2){jDates.push(isoD(new Date(jd2)));jd2.setDate(jd2.getDate()+1);}
+              jDates.reverse();
+            }
+          } else {
+            var allJK=Object.keys(st.dayNotes).filter(function(k){return !!(st.dayNotes[k]&&st.dayNotes[k].trim());});
+            var firstJ=allJK.slice().sort()[0];
+            if(firstJ){
+              jDates=[];var jd3=new Date(firstJ);
+              while(isoD(jd3)<=TODAY){jDates.push(isoD(new Date(jd3)));jd3.setDate(jd3.getDate()+1);}
+              jDates.reverse();
+            } else jDates=[TODAY];
+          }
+          var JFILTERS=[["day",t.jDay],["week",t.jWeek],["month",t.jMonth],["all",t.jAll],["custom",t.jCustom]];
+          var jed=ui.journalEditDay;
+          return(
+            <div>
+              <p style={{fontSize:16,fontWeight:700,color:textMain,margin:"0 0 14px"}}>📓 {t.journal}</p>
+              <div style={{display:"flex",gap:3,marginBottom:14,background:card,borderRadius:10,padding:3,border:"1px solid "+border}}>
+                {JFILTERS.map(function(pair){
+                  var a=jf===pair[0];
+                  return(
+                    <div key={pair[0]} onClick={function(){mu({journalFilter:pair[0],journalEditDay:null});}} style={{flex:1,textAlign:"center",padding:"7px 2px",borderRadius:7,background:a?darkBg:"transparent",color:a?textMain:textSub,fontSize:11,fontWeight:a?600:400,cursor:"pointer"}}>
+                      {pair[1]}
+                    </div>
+                  );
+                })}
+              </div>
+              {jf==="custom"&&(
+                <div style={{display:"flex",gap:8,marginBottom:14,alignItems:"center"}}>
+                  <input type="date" value={jFrom} max={TODAY} onChange={function(e){mu({journalFrom:e.target.value});}} style={{flex:1,fontSize:12,padding:"8px 10px",borderRadius:8,border:"1px solid "+border,background:card,color:textMain,fontFamily:"inherit",outline:"none"}}/>
+                  <span style={{color:textSub,fontSize:12}}>—</span>
+                  <input type="date" value={jTo} max={TODAY} onChange={function(e){mu({journalTo:e.target.value});}} style={{flex:1,fontSize:12,padding:"8px 10px",borderRadius:8,border:"1px solid "+border,background:card,color:textMain,fontFamily:"inherit",outline:"none"}}/>
+                </div>
+              )}
+              <div>
+                {jDates.map(function(k){
+                  var jd=new Date(k+"T12:00:00");
+                  var jlabel=jd.toLocaleDateString(st.lang==="uk"?"uk-UA":"en-US",{weekday:"short",day:"numeric",month:"short"});
+                  var isToday=k===TODAY;
+                  var note=st.dayNotes[k]||"";
+                  var isEditing=jed===k;
+                  return(
+                    <Card key={k} s={{marginBottom:10,padding:"12px 14px"}}>
+                      <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:isEditing||note?8:0}}>
+                        {isToday&&<span style={{fontSize:9,fontWeight:700,color:green,background:greenBg,padding:"1px 6px",borderRadius:8,border:"1px solid "+greenBo,flexShrink:0}}>●</span>}
+                        <p style={{fontSize:13,fontWeight:700,color:isToday?textMain:textSub,margin:0,flex:1}}>{jlabel}</p>
+                        {!isEditing&&(
+                          <button onClick={function(){mu({journalEditDay:k,journalEditText:note});}} style={{background:"transparent",border:"1px solid "+border,borderRadius:8,color:note?green:textLight,fontSize:12,cursor:"pointer",padding:"3px 10px",fontFamily:"inherit"}}>
+                            {note?"✎":"＋"}
+                          </button>
+                        )}
+                      </div>
+                      {isEditing?(
+                        <div>
+                          <textarea autoFocus value={ui.journalEditText} onChange={function(e){mu({journalEditText:e.target.value});}} rows={3} style={{width:"100%",fontSize:13,padding:"8px 10px",borderRadius:8,border:"1px solid "+border,background:darkBg,color:textMain,fontFamily:"inherit",outline:"none",resize:"none",lineHeight:1.6,boxSizing:"border-box"}}/>
+                          <div style={{display:"flex",gap:8,marginTop:6}}>
+                            <button onClick={function(){mu({journalEditDay:null,journalEditText:""}); }} style={{flex:1,padding:"8px",borderRadius:8,border:"1px solid "+border,background:"transparent",color:textSub,fontSize:13,cursor:"pointer",fontFamily:"inherit"}}>{t.cancel}</button>
+                            <button onClick={function(){setDayNote(k,ui.journalEditText);mu({journalEditDay:null,journalEditText:""}); }} style={{flex:1,padding:"8px",borderRadius:8,border:"none",background:textMain,color:card,fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>{t.save}</button>
+                          </div>
+                        </div>
+                      ):note?(
+                        <p style={{fontSize:13,color:textMain,margin:0,lineHeight:1.6,whiteSpace:"pre-wrap"}}>{note}</p>
+                      ):null}
+                    </Card>
+                  );
+                })}
+                {jDates.length===0&&(
+                  <div style={{textAlign:"center",padding:"64px 0"}}>
+                    <p style={{fontSize:40,margin:"0 0 10px"}}>📭</p>
+                    <p style={{fontSize:14,color:textSub,margin:0}}>{t.journalEmpty}</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          );
+        })()}
+
         {ui.tab==="analytics"&&(function(){
           var aTab=(ui.aTab==="all time")?"general":ui.aTab||"general";
           var aKeys=aTab==="week"?wkK:aTab==="month"?moK:atK.slice().sort();
@@ -971,15 +1071,21 @@ export default function App(){
           <div>
             <p style={{fontSize:16,fontWeight:700,color:textMain,margin:"0 0 16px"}}>{t.settings}</p>
 
-            <Card s={{marginBottom:12,cursor:"pointer",padding:"16px 18px"}} onClick={function(){mu({sPanel:"profile"});}}>
+            <Card s={{marginBottom:16,cursor:"pointer",padding:"16px 18px"}} onClick={function(){mu({sPanel:"profile"});}}>
               <div style={{display:"flex",alignItems:"center",gap:14}}>
-                <div style={{width:42,height:42,borderRadius:12,background:darkBg,display:"flex",alignItems:"center",justifyContent:"center",fontSize:20}}>👤</div>
-                <div style={{flex:1}}><p style={{fontSize:15,fontWeight:600,margin:"0 0 2px",color:textMain}}>{t.profile}</p><p style={{fontSize:12,color:textSub,margin:0}}>{st.profileName||t.helloDefault}</p></div>
+                <div style={{width:48,height:48,borderRadius:14,background:darkBg,display:"flex",alignItems:"center",justifyContent:"center",fontSize:22}}>👤</div>
+                <div style={{flex:1}}>
+                  <p style={{fontSize:15,fontWeight:600,margin:"0 0 2px",color:textMain}}>{st.profileName||t.helloDefault}</p>
+                  {(function(){var d=st.calWizData;if(!d||!d.W) return <p style={{fontSize:12,color:textSub,margin:0}}>{t.profile}</p>;
+                    var goalLbl=d.goal==="lose"?t.lose:d.goal==="gain"?t.gain:t.maintain;
+                    return <p style={{fontSize:12,color:textSub,margin:0}}>{d.W}kg · {d.H}cm · {d.A}{st.lang==="uk"?"р":"y"} · {goalLbl}</p>;
+                  })()}
+                </div>
                 <span style={{color:textLight,fontSize:18}}>›</span>
               </div>
             </Card>
 
-            <Card s={{marginBottom:12,cursor:"pointer",padding:"16px 18px"}} onClick={function(){mu({sPanel:"habits"});}}>
+            <Card s={{marginBottom:16,cursor:"pointer",padding:"16px 18px"}} onClick={function(){mu({sPanel:"habits"});}}>
               <div style={{display:"flex",alignItems:"center",gap:14}}>
                 <div style={{width:42,height:42,borderRadius:12,background:greenBg,display:"flex",alignItems:"center",justifyContent:"center",fontSize:20}}>💪</div>
                 <div style={{flex:1}}><p style={{fontSize:15,fontWeight:600,margin:"0 0 2px",color:textMain}}>{t.editHabits}</p><p style={{fontSize:12,color:textSub,margin:0}}>{st.habits.length} {t.habitsConfigured}</p></div>
@@ -987,69 +1093,92 @@ export default function App(){
               </div>
             </Card>
 
-            {[{key:"water",icon:"💧",label:t.water,unit:"L"},{key:"sleep",icon:"🛏",label:t.sleep,unit:"hrs"},{key:"steps",icon:"🚶",label:t.steps,unit:"steps"}].map(function(item){
+            <p style={{fontSize:12,fontWeight:700,color:textLight,textTransform:"uppercase",letterSpacing:"0.06em",margin:"4px 0 10px"}}>{t.sectionNorms}</p>
+
+            {[{key:"water",icon:"💧",label:t.water,unit:"L"},{key:"steps",icon:"🚶",label:t.steps,unit:"steps"},{key:"sleep",icon:"🛏",label:t.sleep,unit:"hrs"}].map(function(item){
               var g=st.goals[item.key];
               return(
-                <Card key={item.key} s={{marginBottom:12,cursor:"pointer",padding:"16px 18px"}} onClick={function(){mu({sPanel:item.key,gDraft:Object.assign({},g)});}}>
-                  <div style={{display:"flex",alignItems:"center",gap:14}}>
-                    <div style={{width:42,height:42,borderRadius:12,background:darkBg,display:"flex",alignItems:"center",justifyContent:"center",fontSize:20}}>{item.icon}</div>
-                    <div style={{flex:1}}><p style={{fontSize:15,fontWeight:600,margin:"0 0 2px",color:textMain}}>{item.label}</p><p style={{fontSize:12,color:textSub,margin:0}}>{t.adjustGoal}</p></div>
-                    <div style={{textAlign:"right"}}><p style={{fontSize:13,fontWeight:600,color:textMain,margin:0}}>{t.norm}: {g.norm} {item.unit}</p><p style={{fontSize:11,color:textSub,margin:0}}>{g.min}–{g.max} {item.unit}</p></div>
-                    <span style={{color:textLight,fontSize:18,marginLeft:6}}>›</span>
+                <Card key={item.key} s={{marginBottom:10,cursor:"pointer",padding:"14px 16px"}} onClick={function(){mu({sPanel:item.key,gDraft:Object.assign({},g),gMode:"recommended"});}}>
+                  <div style={{display:"flex",alignItems:"center",gap:12}}>
+                    <span style={{fontSize:20}}>{item.icon}</span>
+                    <div style={{flex:1}}><p style={{fontSize:14,fontWeight:600,margin:"0 0 1px",color:textMain}}>{item.label}</p><p style={{fontSize:11,color:textSub,margin:0}}>{t.adjustGoal}</p></div>
+                    <div style={{textAlign:"right"}}><p style={{fontSize:13,fontWeight:600,color:textMain,margin:0}}>{g.norm} {item.unit}</p><p style={{fontSize:11,color:textSub,margin:0}}>{g.min}–{g.max}</p></div>
+                    <span style={{color:textLight,fontSize:16,marginLeft:4}}>›</span>
                   </div>
                 </Card>
               );
             })}
 
             {(function(){var g=st.goals.calories;return(
-              <Card s={{marginBottom:12,cursor:"pointer",padding:"16px 18px"}} onClick={function(){var d=st.calWizData;mu({wiz:d?{step:1,gender:d.gender,W:d.W,H:d.H,A:d.A,goal:d.goal,act:d.act,result:null}:{step:1,gender:null,W:"",H:"",A:"",goal:null,act:null,result:null}});}}>
-                <div style={{display:"flex",alignItems:"center",gap:14}}>
-                  <div style={{width:42,height:42,borderRadius:12,background:darkBg,display:"flex",alignItems:"center",justifyContent:"center",fontSize:20}}>🥗</div>
-                  <div style={{flex:1}}><p style={{fontSize:15,fontWeight:600,margin:"0 0 2px",color:textMain}}>{t.calories}</p><p style={{fontSize:12,color:textSub,margin:0}}>{t.calcNorm}</p></div>
-                  <div style={{textAlign:"right"}}><p style={{fontSize:13,fontWeight:600,color:textMain,margin:0}}>{t.norm}: {g.norm} kcal</p><p style={{fontSize:11,color:textSub,margin:0}}>{g.min}–{g.max}</p></div>
-                  <span style={{color:textLight,fontSize:18,marginLeft:6}}>›</span>
+              <Card s={{marginBottom:16,cursor:"pointer",padding:"14px 16px"}} onClick={function(){var d=st.calWizData;mu({wiz:d?{step:1,gender:d.gender,W:d.W,H:d.H,A:d.A,goal:d.goal,act:d.act,result:null}:{step:1,gender:null,W:"",H:"",A:"",goal:null,act:null,result:null}});}}>
+                <div style={{display:"flex",alignItems:"center",gap:12}}>
+                  <span style={{fontSize:20}}>🥗</span>
+                  <div style={{flex:1}}><p style={{fontSize:14,fontWeight:600,margin:"0 0 1px",color:textMain}}>{t.calories}</p><p style={{fontSize:11,color:textSub,margin:0}}>{t.calcNorm}</p></div>
+                  <div style={{textAlign:"right"}}><p style={{fontSize:13,fontWeight:600,color:textMain,margin:0}}>{g.norm} kcal</p><p style={{fontSize:11,color:textSub,margin:0}}>{g.min}–{g.max}</p></div>
+                  <span style={{color:textLight,fontSize:16,marginLeft:4}}>›</span>
                 </div>
               </Card>
             );}())}
 
-            <Card s={{marginBottom:12,cursor:"pointer",padding:"16px 18px"}} onClick={function(){mu({sPanel:"lang"});}}>
-              <div style={{display:"flex",alignItems:"center",gap:14}}>
-                <div style={{width:42,height:42,borderRadius:12,background:darkBg,display:"flex",alignItems:"center",justifyContent:"center",fontSize:20}}>🌐</div>
-                <div style={{flex:1}}><p style={{fontSize:15,fontWeight:600,margin:"0 0 2px",color:textMain}}>{t.language}</p><p style={{fontSize:12,color:textSub,margin:0}}>{st.lang==="en"?"English":"Ukrainian"}</p></div>
-                <span style={{color:textLight,fontSize:18}}>›</span>
+            <p style={{fontSize:12,fontWeight:700,color:textLight,textTransform:"uppercase",letterSpacing:"0.06em",margin:"4px 0 10px"}}>{t.sectionSystem}</p>
+
+            <Card s={{marginBottom:10,cursor:"pointer",padding:"14px 16px"}} onClick={function(){mu({sPanel:"lang"});}}>
+              <div style={{display:"flex",alignItems:"center",gap:12}}>
+                <span style={{fontSize:20}}>🌐</span>
+                <div style={{flex:1}}><p style={{fontSize:14,fontWeight:600,margin:0,color:textMain}}>{t.language}</p></div>
+                <span style={{fontSize:13,color:textSub,marginRight:6}}>{st.lang==="en"?"English":"Ukrainian"}</span>
+                <span style={{color:textLight,fontSize:16}}>›</span>
               </div>
             </Card>
 
-            <Card s={{marginBottom:12,cursor:"pointer",padding:"16px 18px"}} onClick={function(){mu({sPanel:"theme"});}}>
-              <div style={{display:"flex",alignItems:"center",gap:14}}>
-                <div style={{width:42,height:42,borderRadius:12,background:darkBg,display:"flex",alignItems:"center",justifyContent:"center",fontSize:20}}>{isDark?"🌙":"🌅"}</div>
-                <div style={{flex:1}}><p style={{fontSize:15,fontWeight:600,margin:"0 0 2px",color:textMain}}>{t.visualMode}</p><p style={{fontSize:12,color:textSub,margin:0}}>{isDark?t.evening:t.morning}</p></div>
-                <span style={{color:textLight,fontSize:18}}>›</span>
+            <Card s={{marginBottom:16,cursor:"pointer",padding:"14px 16px"}} onClick={function(){mu({sPanel:"theme"});}}>
+              <div style={{display:"flex",alignItems:"center",gap:12}}>
+                <span style={{fontSize:20}}>{isDark?"🌙":"🌅"}</span>
+                <div style={{flex:1}}><p style={{fontSize:14,fontWeight:600,margin:0,color:textMain}}>{t.visualMode}</p></div>
+                <span style={{fontSize:13,color:textSub,marginRight:6}}>{isDark?t.evening:t.morning}</span>
+                <span style={{color:textLight,fontSize:16}}>›</span>
               </div>
             </Card>
 
-            <Card s={{marginBottom:12,cursor:"pointer",padding:"16px 18px"}} onClick={function(){mu({sPanel:"journal"});}}>
-              <div style={{display:"flex",alignItems:"center",gap:14}}>
-                <div style={{width:42,height:42,borderRadius:12,background:darkBg,display:"flex",alignItems:"center",justifyContent:"center",fontSize:20}}>📓</div>
-                <div style={{flex:1}}><p style={{fontSize:15,fontWeight:600,margin:"0 0 2px",color:textMain}}>{t.journal}</p><p style={{fontSize:12,color:textSub,margin:0}}>{t.journalSub}</p></div>
-                <span style={{color:textLight,fontSize:18}}>›</span>
-              </div>
-            </Card>
-
-            {ui.sPanel==="profile"&&(
-              <Sheet onClose={function(){mu({sPanel:null,profileDraft:undefined});}}>
-                <p style={{fontSize:16,fontWeight:700,color:textMain,margin:"0 0 16px"}}>{t.profile}</p>
-                <p style={{fontSize:13,color:textSub,margin:"0 0 8px"}}>{t.profileName}</p>
-                <input
-                  autoFocus
-                  value={ui.profileDraft!==undefined?ui.profileDraft:(st.profileName||"")}
-                  onChange={function(e){mu({profileDraft:e.target.value});}}
-                  placeholder={t.profilePlaceholder}
-                  style={{width:"100%",boxSizing:"border-box",padding:"12px 14px",borderRadius:12,border:"1px solid "+border,background:darkBg,color:textMain,fontSize:15,fontFamily:"inherit",outline:"none",marginBottom:16}}
-                />
-                <button onClick={function(){mst({profileName:(ui.profileDraft!==undefined?ui.profileDraft:(st.profileName||"")).trim()});mu({sPanel:null,profileDraft:undefined});}} style={{width:"100%",padding:"13px",borderRadius:12,background:textMain,color:card,border:"none",fontSize:15,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>{t.save}</button>
-              </Sheet>
-            )}
+            {ui.sPanel==="profile"&&(function(){
+              var d=st.calWizData;
+              var goalLbl=!d?null:d.goal==="lose"?t.lose:d.goal==="gain"?t.gain:t.maintain;
+              var genderLbl=!d?null:d.gender==="male"?t.profMale:t.profFemale;
+              function InfoRow(rp){return(
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"11px 0",borderBottom:"1px solid "+border}}>
+                  <span style={{fontSize:13,color:textSub}}>{rp.label}</span>
+                  <span style={{fontSize:13,fontWeight:600,color:rp.val?textMain:textLight}}>{rp.val||t.profNoData}</span>
+                </div>
+              );}
+              return(
+                <Sheet onClose={function(){mu({sPanel:null,profileDraft:undefined});}}>
+                  <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:20}}>
+                    <div style={{width:52,height:52,borderRadius:16,background:darkBg,display:"flex",alignItems:"center",justifyContent:"center",fontSize:26}}>👤</div>
+                    <div>
+                      <p style={{fontSize:17,fontWeight:700,color:textMain,margin:"0 0 2px"}}>{st.profileName||t.helloDefault}</p>
+                      <p style={{fontSize:12,color:textSub,margin:0}}>{t.profile}</p>
+                    </div>
+                  </div>
+                  <p style={{fontSize:13,color:textSub,margin:"0 0 6px"}}>{t.profileName}</p>
+                  <input
+                    value={ui.profileDraft!==undefined?ui.profileDraft:(st.profileName||"")}
+                    onChange={function(e){mu({profileDraft:e.target.value});}}
+                    placeholder={t.profilePlaceholder}
+                    style={{width:"100%",boxSizing:"border-box",padding:"11px 14px",borderRadius:10,border:"1px solid "+border,background:darkBg,color:textMain,fontSize:14,fontFamily:"inherit",outline:"none",marginBottom:18}}
+                  />
+                  {d&&(
+                    <div style={{marginBottom:18}}>
+                      <InfoRow label={t.profGender} val={genderLbl}/>
+                      <InfoRow label={t.profWeight} val={d.W?(d.W+" kg"):null}/>
+                      <InfoRow label={t.profHeight} val={d.H?(d.H+" cm"):null}/>
+                      <InfoRow label={t.profAge} val={d.A?(d.A+(st.lang==="uk"?" р.":" y.")):null}/>
+                      <InfoRow label={t.profGoal} val={goalLbl}/>
+                    </div>
+                  )}
+                  <button onClick={function(){mst({profileName:(ui.profileDraft!==undefined?ui.profileDraft:(st.profileName||"")).trim()});mu({sPanel:null,profileDraft:undefined});}} style={{width:"100%",padding:"13px",borderRadius:12,background:textMain,color:card,border:"none",fontSize:15,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>{t.save}</button>
+                </Sheet>
+              );
+            })()}
 
             {ui.sPanel==="lang"&&(
               <Sheet onClose={function(){mu({sPanel:null});}}>
@@ -1075,98 +1204,6 @@ export default function App(){
                 );})}
               </Sheet>
             )}
-
-            {ui.sPanel==="journal"&&(function(){
-              var jf=ui.journalFilter||"week";
-              var jFrom=ui.journalFrom||"";
-              var jTo=ui.journalTo||TODAY;
-              var jDates;
-              if(jf==="day"){
-                jDates=[TODAY];
-              } else if(jf==="week"){
-                jDates=wkK.slice().sort().reverse();
-              } else if(jf==="month"){
-                jDates=moK.slice().sort().reverse();
-              } else if(jf==="custom"){
-                jDates=[];
-                if(jFrom){
-                  var d2=new Date(jFrom),jTo2=jTo||TODAY;
-                  while(isoD(d2)<=jTo2){jDates.push(isoD(new Date(d2)));d2.setDate(d2.getDate()+1);}
-                  jDates.reverse();
-                }
-              } else {
-                var allK=Object.keys(st.dayNotes).filter(function(k){return !!(st.dayNotes[k]&&st.dayNotes[k].trim());});
-                var first=allK.slice().sort()[0];
-                if(first){
-                  jDates=[];var d3=new Date(first);
-                  while(isoD(d3)<=TODAY){jDates.push(isoD(new Date(d3)));d3.setDate(d3.getDate()+1);}
-                  jDates.reverse();
-                } else jDates=[TODAY];
-              }
-              var FILTERS=[["day",t.jDay],["week",t.jWeek],["month",t.jMonth],["all",t.jAll],["custom",t.jCustom]];
-              var jed=ui.journalEditDay;
-              return(
-                <Sheet onClose={function(){mu({sPanel:null,journalEditDay:null,journalEditText:""});}}>
-                  <p style={{fontSize:16,fontWeight:700,color:textMain,margin:"0 0 14px"}}>📓 {t.journal}</p>
-                  <div style={{display:"flex",gap:3,marginBottom:14,background:darkBg,borderRadius:10,padding:3}}>
-                    {FILTERS.map(function(pair){
-                      var a=jf===pair[0];
-                      return(
-                        <div key={pair[0]} onClick={function(){mu({journalFilter:pair[0],journalEditDay:null});}} style={{flex:1,textAlign:"center",padding:"6px 2px",borderRadius:7,background:a?card:"transparent",color:a?textMain:textSub,fontSize:10,fontWeight:a?600:400,cursor:"pointer"}}>
-                          {pair[1]}
-                        </div>
-                      );
-                    })}
-                  </div>
-                  {jf==="custom"&&(
-                    <div style={{display:"flex",gap:8,marginBottom:14,alignItems:"center"}}>
-                      <input type="date" value={jFrom} max={TODAY} onChange={function(e){mu({journalFrom:e.target.value});}} style={{flex:1,fontSize:12,padding:"8px 10px",borderRadius:8,border:"1px solid "+border,background:darkBg,color:textMain,fontFamily:"inherit",outline:"none"}}/>
-                      <span style={{color:textSub,fontSize:12}}>—</span>
-                      <input type="date" value={jTo} max={TODAY} onChange={function(e){mu({journalTo:e.target.value});}} style={{flex:1,fontSize:12,padding:"8px 10px",borderRadius:8,border:"1px solid "+border,background:darkBg,color:textMain,fontFamily:"inherit",outline:"none"}}/>
-                    </div>
-                  )}
-                  <div>
-                    {jDates.map(function(k){
-                      var d=new Date(k+"T12:00:00");
-                      var label=d.toLocaleDateString(st.lang==="uk"?"uk-UA":"en-US",{weekday:"short",day:"numeric",month:"short"});
-                      var isToday=k===TODAY;
-                      var note=st.dayNotes[k]||"";
-                      var isEditing=jed===k;
-                      return(
-                        <div key={k} style={{marginBottom:12,paddingBottom:12,borderBottom:"1px solid "+border}}>
-                          <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:isEditing||note?8:0}}>
-                            {isToday&&<span style={{fontSize:9,fontWeight:700,color:green,background:greenBg,padding:"1px 6px",borderRadius:8,border:"1px solid "+greenBo,flexShrink:0}}>●</span>}
-                            <p style={{fontSize:12,fontWeight:700,color:isToday?textMain:textSub,margin:0,flex:1}}>{label}</p>
-                            {!isEditing&&(
-                              <button onClick={function(){mu({journalEditDay:k,journalEditText:note});}} style={{background:"transparent",border:"1px solid "+border,borderRadius:8,color:note?green:textLight,fontSize:12,cursor:"pointer",padding:"2px 8px",fontFamily:"inherit"}}>
-                                {note?"✎":"＋"}
-                              </button>
-                            )}
-                          </div>
-                          {isEditing?(
-                            <div>
-                              <textarea autoFocus value={ui.journalEditText} onChange={function(e){mu({journalEditText:e.target.value});}} rows={3} style={{width:"100%",fontSize:13,padding:"8px 10px",borderRadius:8,border:"1px solid "+border,background:darkBg,color:textMain,fontFamily:"inherit",outline:"none",resize:"none",lineHeight:1.6,boxSizing:"border-box"}}/>
-                              <div style={{display:"flex",gap:8,marginTop:6}}>
-                                <button onClick={function(){mu({journalEditDay:null,journalEditText:""}); }} style={{flex:1,padding:"8px",borderRadius:8,border:"1px solid "+border,background:"transparent",color:textSub,fontSize:13,cursor:"pointer",fontFamily:"inherit"}}>{t.cancel}</button>
-                                <button onClick={function(){setDayNote(k,ui.journalEditText);mu({journalEditDay:null,journalEditText:""}); }} style={{flex:1,padding:"8px",borderRadius:8,border:"none",background:textMain,color:card,fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>{t.save}</button>
-                              </div>
-                            </div>
-                          ):note?(
-                            <p style={{fontSize:13,color:textMain,margin:0,lineHeight:1.6,whiteSpace:"pre-wrap"}}>{note}</p>
-                          ):null}
-                        </div>
-                      );
-                    })}
-                    {jDates.length===0&&(
-                      <div style={{textAlign:"center",padding:"48px 0"}}>
-                        <p style={{fontSize:36,margin:"0 0 10px"}}>📭</p>
-                        <p style={{fontSize:14,color:textSub,margin:0}}>{t.journalEmpty}</p>
-                      </div>
-                    )}
-                  </div>
-                </Sheet>
-              );
-            })()}
 
             {ui.sPanel==="habits"&&(
               <Sheet onClose={function(){mu({sPanel:null});}}>
@@ -1205,13 +1242,19 @@ export default function App(){
               var recGoal=(function(){
                 if(!hasWeight) return null;
                 var W=parseFloat(st.calWizData.W);
-                var mn=Math.round(W*30)/1000,mx=Math.round(W*35)/1000;
+                var low=Math.round(W*20)/1000;
+                var minLo=Math.round(W*20)/1000,minHi=Math.round(W*25)/1000;
+                var normLo=Math.round(W*30)/1000,normHi=Math.round(W*35)/1000;
                 var hasWorkout=st.habits.some(function(h){return /трен|workout|тренуван/i.test(h.name);});
                 var isSummer=[5,6,7].indexOf(new Date().getMonth())>=0;
-                if(hasWorkout){mn+=0.3;mx+=0.3;}
-                if(isSummer){mn+=0.5;mx+=0.5;}
-                mn=Math.round(mn*10)/10;mx=Math.round(mx*10)/10;
-                return{min:mn,norm:Math.round((mn+mx)/2*10)/10,max:mx,hasWorkout:hasWorkout,isSummer:isSummer};
+                var bonus=0;
+                if(hasWorkout)bonus+=0.3;
+                if(isSummer)bonus+=0.5;
+                normLo=Math.round((normLo+bonus)*10)/10;normHi=Math.round((normHi+bonus)*10)/10;
+                minLo=Math.round((minLo+bonus)*10)/10;minHi=Math.round((minHi+bonus)*10)/10;
+                low=Math.round((low+bonus)*10)/10;
+                var saveNorm=Math.round((normLo+normHi)/2*10)/10;
+                return{low:low,minLo:minLo,minHi:minHi,normLo:normLo,normHi:normHi,saveMin:minLo,saveNorm:saveNorm,saveMax:normHi,hasWorkout:hasWorkout,isSummer:isSummer};
               })();
               return(
                 <Sheet onClose={function(){mu({sPanel:null,gDraft:null});}}>
@@ -1231,21 +1274,28 @@ export default function App(){
                     <div>
                       {hasWeight&&recGoal?(
                         <div>
-                          <div style={{background:darkBg,borderRadius:12,padding:"14px 16px",marginBottom:14}}>
-                            <p style={{fontSize:13,fontWeight:700,color:textMain,margin:"0 0 10px"}}>{t.wFormulaTitle}</p>
-                            <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}>
-                              <span style={{fontSize:14}}>⚖️</span>
-                              <span style={{fontSize:13,color:textSub,flex:1}}>{t.wFormulaDesc}</span>
-                              <span style={{fontSize:13,fontWeight:600,color:textMain}}>{recGoal.min}–{recGoal.max} L</span>
+                          <p style={{fontSize:13,fontWeight:700,color:textMain,margin:"0 0 10px"}}>{t.wFormulaTitle}</p>
+                          {[
+                            {label:t.wLow,desc:t.wLowDesc,val:recGoal.low+" L",col:red,bg:"rgba(239,68,68,0.08)"},
+                            {label:t.wMinimum,desc:t.wMinDesc,val:recGoal.minLo+"–"+recGoal.minHi+" L",col:yellow,bg:"rgba(245,158,11,0.08)"},
+                            {label:t.wNorm,desc:t.wNormDesc,val:recGoal.normLo+"–"+recGoal.normHi+" L",col:green,bg:greenBg},
+                          ].map(function(tier){return(
+                            <div key={tier.label} style={{background:tier.bg,borderRadius:12,padding:"12px 14px",marginBottom:8,border:"1px solid "+tier.col+"33"}}>
+                              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:2}}>
+                                <span style={{fontSize:13,fontWeight:700,color:tier.col}}>{tier.label}</span>
+                                <span style={{fontSize:14,fontWeight:800,color:tier.col}}>{tier.val}</span>
+                              </div>
+                              <span style={{fontSize:11,color:textSub}}>{tier.desc}</span>
                             </div>
-                            {recGoal.hasWorkout&&(<div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}><span style={{fontSize:14}}>🏋️</span><span style={{fontSize:13,color:green,flex:1}}>{t.wWorkoutBonus}</span></div>)}
-                            {recGoal.isSummer&&(<div style={{display:"flex",alignItems:"center",gap:8}}><span style={{fontSize:14}}>☀️</span><span style={{fontSize:13,color:yellow,flex:1}}>{t.wSummerBonus}</span></div>)}
-                          </div>
-                          <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8,marginBottom:18}}>
-                            {[["min",t.min,recGoal.min],["norm",t.norm,recGoal.norm],["max",t.max,recGoal.max]].map(function(f){return(<div key={f[0]} style={{background:f[0]==="norm"?"#111827":darkBg,borderRadius:10,padding:"10px 6px",textAlign:"center",border:"1px solid "+(f[0]==="norm"?"#111827":border)}}><p style={{fontSize:10,color:f[0]==="norm"?"#aaa":textSub,margin:"0 0 2px",textTransform:"uppercase"}}>{f[1]}</p><p style={{fontSize:18,fontWeight:800,color:f[0]==="norm"?"#fff":textMain,margin:0}}>{f[2]}</p><p style={{fontSize:10,color:f[0]==="norm"?"#aaa":textSub,margin:0}}>L</p></div>);})}
-                          </div>
-                          <div style={{display:"flex",gap:10}}>
-                            <Btn onClick={function(){saveGoals("water",{min:recGoal.min,norm:recGoal.norm,max:recGoal.max});}} v="pri" s={{flex:1,padding:"12px",fontSize:15}}>{t.wApplyRec}</Btn>
+                          );})}
+                          {(recGoal.hasWorkout||recGoal.isSummer)&&(
+                            <div style={{marginTop:4,marginBottom:14}}>
+                              {recGoal.hasWorkout&&<p style={{fontSize:11,color:green,margin:"2px 0"}}>🏋️ {t.wWorkoutBonus}</p>}
+                              {recGoal.isSummer&&<p style={{fontSize:11,color:yellow,margin:"2px 0"}}>☀️ {t.wSummerBonus}</p>}
+                            </div>
+                          )}
+                          <div style={{display:"flex",gap:10,marginTop:14}}>
+                            <Btn onClick={function(){saveGoals("water",{min:recGoal.saveMin,norm:recGoal.saveNorm,max:recGoal.saveMax});}} v="pri" s={{flex:1,padding:"12px",fontSize:15}}>{t.wApplyRec}</Btn>
                             <Btn onClick={function(){mu({sPanel:null,gDraft:null});}}>{t.cancel}</Btn>
                           </div>
                         </div>
