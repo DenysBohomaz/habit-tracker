@@ -927,7 +927,7 @@ export default function App(){
                           </div>
                         )}
                         {(function(){
-                          var wv=st.water&&st.water[key],cv=st.calories&&st.calories[key],slv=st.sleep&&st.sleep[key],stv=st.stepsLog&&st.stepsLog[key];
+                          var wv=st.water&&parseFloat(st.water[key])||0,cv=st.calories&&parseFloat(st.calories[key])||0,slv=st.sleep&&parseFloat(st.sleep[key])||0,stv=st.stepsLog&&parseFloat(st.stepsLog[key])||0;
                           var wn=st.goals.water&&st.goals.water.norm,cn=st.goals.calories&&st.goals.calories.norm,sln=st.goals.sleep&&st.goals.sleep.norm,stn=st.goals.steps&&st.goals.steps.norm;
                           var rows=[
                             {icon:"💧",label:t.water,val:wv,norm:wn,unit:"L",fmt:function(v){return v.toFixed(1);}},
