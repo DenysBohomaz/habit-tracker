@@ -34,6 +34,7 @@ var I18N = {
     habitDetails:"Habit details",
     journal:"Journal",journalSub:"Daily reflections",journalEmpty:"No entries yet",
     jDay:"Day",jWeek:"Week",jMonth:"Month",jAll:"All time",jCustom:"Custom",
+    steps:"Steps",stepsGoal:"Steps per day",stepsLeft:"steps left",stepsDone:"Goal reached",
   },
   uk: {
     hello:"Привіт",helloDefault:"Чемпіоне",profile:"Профіль",profileName:"Ваше ім'я",profilePlaceholder:"Введіть ваше ім'я...",today:"Сьогодні",calendar:"Календар",analytics:"Аналітика",settings:"Налаштування",
@@ -66,6 +67,7 @@ var I18N = {
     habitDetails:"Деталі звички",
     journal:"Журнал",journalSub:"Рефлексія по днях",journalEmpty:"Записів поки немає",
     jDay:"День",jWeek:"Тиждень",jMonth:"Місяць",jAll:"Весь час",jCustom:"Кастом",
+    steps:"Кроки",stepsGoal:"Кроків на день",stepsLeft:"кроків залишилось",stepsDone:"Ціль досягнута",
   }
 };
 
@@ -103,7 +105,8 @@ function initSt(){
     water:(s&&s.water)||{},
     sleep:(s&&s.sleep)||{},
     calories:(s&&s.calories)||{},
-    goals:(s&&s.goals)||{water:{min:1,norm:3,max:4},sleep:{min:6,norm:8,max:10},calories:{min:1200,norm:2000,max:2800}},
+    goals:(s&&s.goals)||{water:{min:1,norm:3,max:4},sleep:{min:6,norm:8,max:10},calories:{min:1200,norm:2000,max:2800},steps:{min:5000,norm:8000,max:15000}},
+    stepsLog:(s&&s.stepsLog)||{},
     lang:(s&&s.lang)||"en",
     theme:(s&&s.theme)||"morning",
     profileName:(s&&s.profileName)||"",
@@ -113,7 +116,7 @@ function initSt(){
     tags:(s&&s.tags)||[],
   };
 }
-function initUi(){return{tab:"today",aTab:"general",yr:new Date().getFullYear(),mo:new Date().getMonth(),pDay:null,editH:null,detH:null,detFrom:null,form:Object.assign({},BLANK),thumb:{},confetti:false,hPopup:null,calPop:false,calIn:"",calMode:"+",sPanel:null,gDraft:null,wiz:null,taskInput:"",taskDragIdx:null,taskDragOver:null,taskDragList:null,taskPopup:null,taskEdit:null,activeTag:null,tagInput:"",showTagInput:false,taskDeleteConfirm:null,journalFilter:"week",journalFrom:"",journalTo:""};}
+function initUi(){return{tab:"today",aTab:"general",yr:new Date().getFullYear(),mo:new Date().getMonth(),pDay:null,editH:null,detH:null,detFrom:null,form:Object.assign({},BLANK),thumb:{},confetti:false,hPopup:null,calPop:false,calIn:"",calMode:"+",sPanel:null,gDraft:null,wiz:null,taskInput:"",taskDragIdx:null,taskDragOver:null,taskDragList:null,taskPopup:null,taskEdit:null,activeTag:null,tagInput:"",showTagInput:false,taskDeleteConfirm:null,journalFilter:"week",journalFrom:"",journalTo:"",journalEditDay:null,journalEditText:""};}
 
 export default function App(){
   var st0=useState(initSt),st=st0[0],setSt=st0[1];
@@ -163,7 +166,18 @@ export default function App(){
   var oPct=todayH.length?Math.round(todayH.reduce(function(s,h){return s+getPct(h,TODAY,st.counts);},0)/todayH.length):0;
   useEffect(function(){if(oPct===100&&!ui.confetti){setUi(function(u){return setK(u,"confetti",true)});setTimeout(function(){setUi(function(u){return setK(u,"confetti",false)});},3500);}});
 
-  var WG=st.goals.water.norm,WX=st.goals.water.max;
+  var _wGoal=(function(){
+    var cw=st.calWizData,W=cw&&parseFloat(cw.W);
+    if(!W||isNaN(W)||W<=0) return st.goals.water;
+    var mn=Math.round(W*30)/1000, mx=Math.round(W*35)/1000;
+    var hasWorkout=st.habits.some(function(h){return /трен|workout|тренуван/i.test(h.name);});
+    var isSummer=[5,6,7].indexOf(new Date().getMonth())>=0;
+    if(hasWorkout){mn+=0.3;mx+=0.3;}
+    if(isSummer){mn+=0.5;mx+=0.5;}
+    mn=Math.round(mn*10)/10; mx=Math.round(mx*10)/10;
+    return {min:mn, norm:Math.round((mn+mx)/2*10)/10, max:mx};
+  })();
+  var WG=_wGoal.norm, WX=_wGoal.max, WM=_wGoal.min;
   var wl=st.water[TODAY]||0,wPct=Math.min(wl/WG,1);
   var wCol=wPct>=1?"#2563eb":wPct>=0.5?"#3b82f6":"#93c5fd";
   var fy=Math.round(149-119*wPct);
@@ -171,12 +185,15 @@ export default function App(){
   var sh=st.sleep[TODAY]||"",shN=parseFloat(sh);
   var sCol=isNaN(shN)||!sh?border:shN>=SN?green:shN>=SM?yellow:red;
   var sLbl=!sh?t.enterHrs:shN>=SN?t.great:shN>=SM?t.okay:t.low;
-  var WM=st.goals.water.min;
   var wStatusCol=!wl?textSub:wl>=WG?green:wl>=WM?yellow:red;
   var CN=st.goals.calories.norm,CX=st.goals.calories.max,CM=st.goals.calories.min;
   var calT=st.calories[TODAY]||0,cPct=Math.min(calT/Math.max(1,CX),1);
   var cCol=calT>=CX?red:calT>=CN?green:textSub;
   var cStatusCol=!calT?textSub:calT>=CN?green:calT>=CM?yellow:red;
+  var _sg=st.goals.steps||{min:5000,norm:8000,max:15000};
+  var STP_N=_sg.norm,STP_M=_sg.min,STP_X=_sg.max;
+  var stepsT=st.stepsLog&&st.stepsLog[TODAY]||0;
+  var stepsCol=!stepsT?textSub:stepsT>=STP_N?green:stepsT>=STP_M?yellow:red;
 
   var yr=ui.yr,mo=ui.mo,DIM=dim(yr,mo),FDM=fdm(yr,mo);
   var mName=new Date(yr,mo,1).toLocaleDateString("en-US",{month:"long",year:"numeric"});
@@ -235,6 +252,8 @@ export default function App(){
   function updateTaskText(id,text,list){if(!text.trim())return;setSt(function(s){var key=list==="later"?"laterTasks":"tasks";var arr=s[key].map(function(tk){return tk.id===id?Object.assign({},tk,{text:text.trim()}):tk;});var r=Object.assign({},s);r[key]=arr;return r;});}
   function saveTaskEdit(id,updates,list){if(updates.text&&!updates.text.trim())return;var u=Object.assign({},updates);if(u.text)u.text=u.text.trim();setSt(function(s){var key=list==="later"?"laterTasks":"tasks";var arr=s[key].map(function(tk){return tk.id===id?Object.assign({},tk,u):tk;});var r=Object.assign({},s);r[key]=arr;return r;});}
   function requestNotifPermission(){if("Notification" in window&&Notification.permission==="default"){Notification.requestPermission();}}
+  function setSteps(v){var raw=parseInt(v),tod=TODAY;setSt(function(s){var sl=Object.assign({},s.stepsLog||{});sl[tod]=isNaN(raw)||raw<0?0:Math.min(STP_X,raw);return Object.assign({},s,{stepsLog:sl});});}
+  function setDayNote(date,v){setSt(function(s){var d=Object.assign({},s.dayNotes);d[date]=v;return Object.assign({},s,{dayNotes:d});});}
   function addW(d){var next=Math.max(0,Math.min(WX,Math.round((wl+d)*10)/10)),tod=TODAY;setSt(function(s){var w=Object.assign({},s.water);w[tod]=next;return Object.assign({},s,{water:w});});}
   function addCal(v){var tod=TODAY;setSt(function(s){var c=Object.assign({},s.calories);c[tod]=Math.max(0,(c[tod]||0)+v);return Object.assign({},s,{calories:c});});}
   function setNote(v){var tod=TODAY;setSt(function(s){var d=Object.assign({},s.dayNotes);d[tod]=v;return Object.assign({},s,{dayNotes:d});});}
@@ -382,7 +401,7 @@ export default function App(){
 
         {ui.tab==="today"&&(
           <div>
-            <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10,marginBottom:14}}>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:6,marginBottom:14}}>
               <Card s={{padding:"12px 8px",textAlign:"center",display:"flex",flexDirection:"column",alignItems:"center"}}>
                 <p style={{fontSize:10,fontWeight:700,color:textSub,margin:"0 0 2px",textTransform:"uppercase",letterSpacing:"0.06em"}}>{t.sleep}</p>
                 <p style={{fontSize:11,fontWeight:700,color:sCol,margin:"0 0 4px",lineHeight:1}}>{sh||"–"}/{SN} hrs</p>
@@ -449,6 +468,24 @@ export default function App(){
                   <span style={{flex:1,fontSize:9,color:textSub,textAlign:"center"}}>{t.log}</span>
                   <IBtn onClick={function(){mu({calPop:true,calIn:"",calMode:"+"});}} sz={26}>+</IBtn>
                 </div>
+              </Card>
+
+              <Card s={{padding:"10px 6px",textAlign:"center",display:"flex",flexDirection:"column",alignItems:"center"}}>
+                <p style={{fontSize:9,fontWeight:700,color:textSub,margin:"0 0 2px",textTransform:"uppercase",letterSpacing:"0.05em"}}>{t.steps}</p>
+                <p style={{fontSize:10,fontWeight:700,color:stepsCol,margin:"0 0 4px",lineHeight:1}}>{stepsT.toLocaleString()}/{(STP_N/1000).toFixed(0)}k</p>
+                <div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center"}}>
+                  <svg viewBox="0 0 44 64" width="32" height="48">
+                    <circle cx="22" cy="6" r="5.5" fill={stepsCol||textSub}/>
+                    <line x1="22" y1="11" x2="22" y2="34" stroke={stepsCol||textSub} strokeWidth="3.5" strokeLinecap="round"/>
+                    <line x1="22" y1="20" x2="10" y2="30" stroke={stepsCol||textSub} strokeWidth="3" strokeLinecap="round"/>
+                    <line x1="22" y1="20" x2="34" y2="26" stroke={stepsCol||textSub} strokeWidth="3" strokeLinecap="round"/>
+                    <line x1="22" y1="34" x2="13" y2="52" stroke={stepsCol||textSub} strokeWidth="3" strokeLinecap="round"/>
+                    <line x1="22" y1="34" x2="31" y2="52" stroke={stepsCol||textSub} strokeWidth="3" strokeLinecap="round"/>
+                    <line x1="13" y1="52" x2="7"  y2="56" stroke={stepsCol||textSub} strokeWidth="2.5" strokeLinecap="round"/>
+                    <line x1="31" y1="52" x2="37" y2="56" stroke={stepsCol||textSub} strokeWidth="2.5" strokeLinecap="round"/>
+                  </svg>
+                </div>
+                <input type="number" min="0" max={STP_X} step="100" placeholder="0" value={stepsT||""} onChange={function(e){setSteps(e.target.value);}} style={{width:"100%",background:darkBg,border:"1px solid "+stepsCol,borderRadius:8,fontSize:12,fontWeight:700,color:stepsCol,textAlign:"center",padding:"4px 2px",fontFamily:"inherit",outline:"none",boxSizing:"border-box",marginTop:6}}/>
               </Card>
             </div>
 
@@ -889,6 +926,32 @@ export default function App(){
                             {mH.length>0&&<div><p style={{fontSize:11,fontWeight:700,color:red,margin:"14px 0 6px",textTransform:"uppercase"}}>{t.missed} ({mH.length})</p>{mH.map(function(h){return <HR key={h.id} h={h} col={red} icon="✗"/>;})}</div>}
                           </div>
                         )}
+                        {(function(){
+                          var wv=st.water&&st.water[key],cv=st.calories&&st.calories[key],slv=st.sleep&&st.sleep[key],stv=st.stepsLog&&st.stepsLog[key];
+                          var wn=st.goals.water&&st.goals.water.norm,cn=st.goals.calories&&st.goals.calories.norm,sln=st.goals.sleep&&st.goals.sleep.norm,stn=st.goals.steps&&st.goals.steps.norm;
+                          var rows=[
+                            {icon:"💧",label:t.water,val:wv,norm:wn,unit:"L",fmt:function(v){return v.toFixed(1);}},
+                            {icon:"🍎",label:t.calories,val:cv,norm:cn,unit:"kcal",fmt:function(v){return v;}},
+                            {icon:"🛏",label:t.sleep,val:slv,norm:sln,unit:"h",fmt:function(v){return v.toFixed(1);}},
+                            {icon:"🚶",label:t.steps,val:stv,norm:stn,unit:"",fmt:function(v){return v.toLocaleString();}},
+                          ].filter(function(r){return r.val!=null&&r.val>0;});
+                          if(!rows.length) return null;
+                          return(
+                            <div style={{marginTop:14,paddingTop:14,borderTop:"1px solid "+border}}>
+                              {rows.map(function(r){
+                                var col=r.val>=r.norm?green:r.val>=r.norm*0.7?yellow:red;
+                                return(
+                                  <div key={r.label} style={{display:"flex",alignItems:"center",gap:10,padding:"6px 0"}}>
+                                    <span style={{fontSize:16}}>{r.icon}</span>
+                                    <span style={{flex:1,fontSize:13,color:textSub}}>{r.label}</span>
+                                    <span style={{fontSize:13,fontWeight:700,color:col}}>{r.fmt(r.val)}</span>
+                                    <span style={{fontSize:12,color:textLight}}>/ {r.norm}{r.unit}</span>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          );
+                        })()}
                       </Sheet>
                     );
                   })()}
@@ -918,7 +981,7 @@ export default function App(){
               </div>
             </Card>
 
-            {[{key:"water",icon:"💧",label:t.water,unit:"L"},{key:"sleep",icon:"🛏",label:t.sleep,unit:"hrs"}].map(function(item){
+            {[{key:"water",icon:"💧",label:t.water,unit:"L"},{key:"sleep",icon:"🛏",label:t.sleep,unit:"hrs"},{key:"steps",icon:"🚶",label:t.steps,unit:"steps"}].map(function(item){
               var g=st.goals[item.key];
               return(
                 <Card key={item.key} s={{marginBottom:12,cursor:"pointer",padding:"16px 18px"}} onClick={function(){mu({sPanel:item.key,gDraft:Object.assign({},g)});}}>
@@ -1026,18 +1089,24 @@ export default function App(){
                   jDates.reverse();
                 }
               } else {
-                jDates=Object.keys(st.dayNotes).sort().reverse();
+                var allK=Object.keys(st.dayNotes).filter(function(k){return !!(st.dayNotes[k]&&st.dayNotes[k].trim());});
+                var first=allK.slice().sort()[0];
+                if(first){
+                  jDates=[];var d3=new Date(first);
+                  while(isoD(d3)<=TODAY){jDates.push(isoD(new Date(d3)));d3.setDate(d3.getDate()+1);}
+                  jDates.reverse();
+                } else jDates=[TODAY];
               }
-              var jEntries=jDates.filter(function(k){return !!(st.dayNotes[k]&&st.dayNotes[k].trim());});
               var FILTERS=[["day",t.jDay],["week",t.jWeek],["month",t.jMonth],["all",t.jAll],["custom",t.jCustom]];
+              var jed=ui.journalEditDay;
               return(
-                <Sheet onClose={function(){mu({sPanel:null});}}>
+                <Sheet onClose={function(){mu({sPanel:null,journalEditDay:null,journalEditText:""});}}>
                   <p style={{fontSize:16,fontWeight:700,color:textMain,margin:"0 0 14px"}}>📓 {t.journal}</p>
                   <div style={{display:"flex",gap:3,marginBottom:14,background:darkBg,borderRadius:10,padding:3}}>
                     {FILTERS.map(function(pair){
                       var a=jf===pair[0];
                       return(
-                        <div key={pair[0]} onClick={function(){mu({journalFilter:pair[0]});}} style={{flex:1,textAlign:"center",padding:"6px 2px",borderRadius:7,background:a?card:"transparent",color:a?textMain:textSub,fontSize:10,fontWeight:a?600:400,cursor:"pointer",transition:"background 0.15s"}}>
+                        <div key={pair[0]} onClick={function(){mu({journalFilter:pair[0],journalEditDay:null});}} style={{flex:1,textAlign:"center",padding:"6px 2px",borderRadius:7,background:a?card:"transparent",color:a?textMain:textSub,fontSize:10,fontWeight:a?600:400,cursor:"pointer"}}>
                           {pair[1]}
                         </div>
                       );
@@ -1050,29 +1119,45 @@ export default function App(){
                       <input type="date" value={jTo} max={TODAY} onChange={function(e){mu({journalTo:e.target.value});}} style={{flex:1,fontSize:12,padding:"8px 10px",borderRadius:8,border:"1px solid "+border,background:darkBg,color:textMain,fontFamily:"inherit",outline:"none"}}/>
                     </div>
                   )}
-                  {jEntries.length===0?(
-                    <div style={{textAlign:"center",padding:"48px 0"}}>
-                      <p style={{fontSize:36,margin:"0 0 10px"}}>📭</p>
-                      <p style={{fontSize:14,color:textSub,margin:0}}>{t.journalEmpty}</p>
-                    </div>
-                  ):(
-                    <div>
-                      {jEntries.map(function(k){
-                        var d=new Date(k+"T12:00:00");
-                        var label=d.toLocaleDateString(st.lang==="uk"?"uk-UA":"en-US",{weekday:"long",day:"numeric",month:"long",year:"numeric"});
-                        var isToday=k===TODAY;
-                        return(
-                          <div key={k} style={{marginBottom:16,paddingBottom:16,borderBottom:"1px solid "+border}}>
-                            <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
-                              {isToday&&<span style={{fontSize:10,fontWeight:700,color:green,background:greenBg,padding:"2px 8px",borderRadius:10,border:"1px solid "+greenBo}}>Сьогодні</span>}
-                              <p style={{fontSize:11,fontWeight:700,color:textLight,textTransform:"uppercase",letterSpacing:"0.04em",margin:0}}>{label}</p>
-                            </div>
-                            <p style={{fontSize:14,color:textMain,margin:0,lineHeight:1.65,whiteSpace:"pre-wrap"}}>{st.dayNotes[k]}</p>
+                  <div>
+                    {jDates.map(function(k){
+                      var d=new Date(k+"T12:00:00");
+                      var label=d.toLocaleDateString(st.lang==="uk"?"uk-UA":"en-US",{weekday:"short",day:"numeric",month:"short"});
+                      var isToday=k===TODAY;
+                      var note=st.dayNotes[k]||"";
+                      var isEditing=jed===k;
+                      return(
+                        <div key={k} style={{marginBottom:12,paddingBottom:12,borderBottom:"1px solid "+border}}>
+                          <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:isEditing||note?8:0}}>
+                            {isToday&&<span style={{fontSize:9,fontWeight:700,color:green,background:greenBg,padding:"1px 6px",borderRadius:8,border:"1px solid "+greenBo,flexShrink:0}}>●</span>}
+                            <p style={{fontSize:12,fontWeight:700,color:isToday?textMain:textSub,margin:0,flex:1}}>{label}</p>
+                            {!isEditing&&(
+                              <button onClick={function(){mu({journalEditDay:k,journalEditText:note});}} style={{background:"transparent",border:"1px solid "+border,borderRadius:8,color:note?green:textLight,fontSize:12,cursor:"pointer",padding:"2px 8px",fontFamily:"inherit"}}>
+                                {note?"✎":"＋"}
+                              </button>
+                            )}
                           </div>
-                        );
-                      })}
-                    </div>
-                  )}
+                          {isEditing?(
+                            <div>
+                              <textarea autoFocus value={ui.journalEditText} onChange={function(e){mu({journalEditText:e.target.value});}} rows={3} style={{width:"100%",fontSize:13,padding:"8px 10px",borderRadius:8,border:"1px solid "+border,background:darkBg,color:textMain,fontFamily:"inherit",outline:"none",resize:"none",lineHeight:1.6,boxSizing:"border-box"}}/>
+                              <div style={{display:"flex",gap:8,marginTop:6}}>
+                                <button onClick={function(){mu({journalEditDay:null,journalEditText:""}); }} style={{flex:1,padding:"8px",borderRadius:8,border:"1px solid "+border,background:"transparent",color:textSub,fontSize:13,cursor:"pointer",fontFamily:"inherit"}}>{t.cancel}</button>
+                                <button onClick={function(){setDayNote(k,ui.journalEditText);mu({journalEditDay:null,journalEditText:""}); }} style={{flex:1,padding:"8px",borderRadius:8,border:"none",background:textMain,color:card,fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>{t.save}</button>
+                              </div>
+                            </div>
+                          ):note?(
+                            <p style={{fontSize:13,color:textMain,margin:0,lineHeight:1.6,whiteSpace:"pre-wrap"}}>{note}</p>
+                          ):null}
+                        </div>
+                      );
+                    })}
+                    {jDates.length===0&&(
+                      <div style={{textAlign:"center",padding:"48px 0"}}>
+                        <p style={{fontSize:36,margin:"0 0 10px"}}>📭</p>
+                        <p style={{fontSize:14,color:textSub,margin:0}}>{t.journalEmpty}</p>
+                      </div>
+                    )}
+                  </div>
                 </Sheet>
               );
             })()}
@@ -1095,9 +1180,9 @@ export default function App(){
               </Sheet>
             )}
 
-            {["water","sleep"].includes(ui.sPanel)&&ui.gDraft&&(function(){
+            {["water","sleep","steps"].includes(ui.sPanel)&&ui.gDraft&&(function(){
               var key=ui.sPanel;
-              var meta={water:{icon:"💧",label:t.water,unit:"L",step:0.1,min:0,max:10},sleep:{icon:"🛏",label:t.sleep,unit:"hrs",step:0.5,min:0,max:24}};
+              var meta={water:{icon:"💧",label:t.water,unit:"L",step:0.1,min:0,max:10},sleep:{icon:"🛏",label:t.sleep,unit:"hrs",step:0.5,min:0,max:24},steps:{icon:"🚶",label:t.steps,unit:"steps",step:500,min:0,max:30000}};
               var m=meta[key],d=ui.gDraft;
               function GoalRow(rp){
                 var frac=Math.round((d[rp.f]-m.min)/Math.max(0.001,m.max-m.min)*100);
