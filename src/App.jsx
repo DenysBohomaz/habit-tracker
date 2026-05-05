@@ -35,6 +35,9 @@ var I18N = {
     journal:"Journal",journalSub:"Daily reflections",journalEmpty:"No entries yet",
     jDay:"Day",jWeek:"Week",jMonth:"Month",jAll:"All time",jCustom:"Custom",
     steps:"Steps",stepsGoal:"Steps per day",stepsLeft:"steps left",stepsDone:"Goal reached",
+    wRecommended:"Recommended",wCustom:"Custom",wFormulaTitle:"Based on your body weight",
+    wFormulaDesc:"Weight × 30–35 ml/kg",wWorkoutBonus:"+0.3 L (workout habit)",wSummerBonus:"+0.5 L (summer months)",
+    wNoWeight:"Enter your weight in the Calories calculator to get a personalized recommendation.",wApplyRec:"Apply recommendation",
   },
   uk: {
     hello:"Привіт",helloDefault:"Чемпіоне",profile:"Профіль",profileName:"Ваше ім'я",profilePlaceholder:"Введіть ваше ім'я...",today:"Сьогодні",calendar:"Календар",analytics:"Аналітика",settings:"Налаштування",
@@ -68,6 +71,9 @@ var I18N = {
     journal:"Журнал",journalSub:"Рефлексія по днях",journalEmpty:"Записів поки немає",
     jDay:"День",jWeek:"Тиждень",jMonth:"Місяць",jAll:"Весь час",jCustom:"Кастом",
     steps:"Кроки",stepsGoal:"Кроків на день",stepsLeft:"кроків залишилось",stepsDone:"Ціль досягнута",
+    wRecommended:"Рекомендовано",wCustom:"Власне",wFormulaTitle:"На основі вашої ваги",
+    wFormulaDesc:"Вага × 30–35 мл/кг",wWorkoutBonus:"+0.3 Л (звичка тренування)",wSummerBonus:"+0.5 Л (літні місяці)",
+    wNoWeight:"Введіть вашу вагу в калькуляторі калорій, щоб отримати персональну рекомендацію.",wApplyRec:"Застосувати рекомендацію",
   }
 };
 
@@ -116,7 +122,7 @@ function initSt(){
     tags:(s&&s.tags)||[],
   };
 }
-function initUi(){return{tab:"today",aTab:"general",yr:new Date().getFullYear(),mo:new Date().getMonth(),pDay:null,editH:null,detH:null,detFrom:null,form:Object.assign({},BLANK),thumb:{},confetti:false,hPopup:null,calPop:false,calIn:"",calMode:"+",sPanel:null,gDraft:null,wiz:null,taskInput:"",taskDragIdx:null,taskDragOver:null,taskDragList:null,taskPopup:null,taskEdit:null,activeTag:null,tagInput:"",showTagInput:false,taskDeleteConfirm:null,journalFilter:"week",journalFrom:"",journalTo:"",journalEditDay:null,journalEditText:""};}
+function initUi(){return{tab:"today",aTab:"general",yr:new Date().getFullYear(),mo:new Date().getMonth(),pDay:null,editH:null,detH:null,detFrom:null,form:Object.assign({},BLANK),thumb:{},confetti:false,hPopup:null,calPop:false,calIn:"",calMode:"+",sPanel:null,gDraft:null,wiz:null,taskInput:"",taskDragIdx:null,taskDragOver:null,taskDragList:null,taskPopup:null,taskEdit:null,activeTag:null,tagInput:"",showTagInput:false,taskDeleteConfirm:null,journalFilter:"week",journalFrom:"",journalTo:"",journalEditDay:null,journalEditText:"",gMode:"recommended"};}
 
 export default function App(){
   var st0=useState(initSt),st=st0[0],setSt=st0[1];
@@ -1184,6 +1190,7 @@ export default function App(){
               var key=ui.sPanel;
               var meta={water:{icon:"💧",label:t.water,unit:"L",step:0.1,min:0,max:10},sleep:{icon:"🛏",label:t.sleep,unit:"hrs",step:0.5,min:0,max:24},steps:{icon:"🚶",label:t.steps,unit:"steps",step:500,min:0,max:30000}};
               var m=meta[key],d=ui.gDraft;
+              var gMode=ui.gMode||"recommended";
               function GoalRow(rp){
                 var frac=Math.round((d[rp.f]-m.min)/Math.max(0.001,m.max-m.min)*100);
                 return(
@@ -1194,24 +1201,77 @@ export default function App(){
                   </div>
                 );
               }
+              var hasWeight=!!(st.calWizData&&parseFloat(st.calWizData.W)>0);
+              var recGoal=(function(){
+                if(!hasWeight) return null;
+                var W=parseFloat(st.calWizData.W);
+                var mn=Math.round(W*30)/1000,mx=Math.round(W*35)/1000;
+                var hasWorkout=st.habits.some(function(h){return /трен|workout|тренуван/i.test(h.name);});
+                var isSummer=[5,6,7].indexOf(new Date().getMonth())>=0;
+                if(hasWorkout){mn+=0.3;mx+=0.3;}
+                if(isSummer){mn+=0.5;mx+=0.5;}
+                mn=Math.round(mn*10)/10;mx=Math.round(mx*10)/10;
+                return{min:mn,norm:Math.round((mn+mx)/2*10)/10,max:mx,hasWorkout:hasWorkout,isSummer:isSummer};
+              })();
               return(
                 <Sheet onClose={function(){mu({sPanel:null,gDraft:null});}}>
-                  <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:20}}>
+                  <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:16}}>
                     <span style={{fontSize:28}}>{m.icon}</span>
                     <p style={{fontSize:17,fontWeight:700,color:textMain,margin:0}}>{m.label}</p>
                   </div>
-                  <div style={{background:darkBg,borderRadius:12,padding:"16px",marginBottom:16}}>
-                    <GoalRow label={t.minimum} f="min"/>
-                    <GoalRow label={t.norm+" ("+t.goalLabel+")"} f="norm"/>
-                    <GoalRow label={t.maximum} f="max"/>
-                  </div>
-                  <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8,marginBottom:16}}>
-                    {["min","norm","max"].map(function(f){return(<div key={f} style={{background:f==="norm"?"#111827":darkBg,borderRadius:10,padding:"10px 6px",textAlign:"center",border:"1px solid "+(f==="norm"?"#111827":border)}}><p style={{fontSize:10,color:f==="norm"?"#aaa":textSub,margin:"0 0 2px",textTransform:"uppercase"}}>{f==="min"?t.min:f==="max"?t.max:t.norm}</p><p style={{fontSize:18,fontWeight:800,color:f==="norm"?"#fff":textMain,margin:0}}>{d[f]}</p><p style={{fontSize:10,color:f==="norm"?"#aaa":textSub,margin:0}}>{m.unit}</p></div>);})}
-                  </div>
-                  <div style={{display:"flex",gap:10}}>
-                    <Btn onClick={function(){saveGoals(key,d);}} v="pri" s={{flex:1,padding:"12px",fontSize:15}}>{t.saveGoals}</Btn>
-                    <Btn onClick={function(){mu({sPanel:null,gDraft:null});}}>{t.cancel}</Btn>
-                  </div>
+                  {key==="water"&&(
+                    <div style={{display:"flex",gap:0,marginBottom:18,background:darkBg,borderRadius:10,padding:3}}>
+                      {[["recommended",t.wRecommended],["custom",t.wCustom]].map(function(pair){
+                        var a=gMode===pair[0];
+                        return(<div key={pair[0]} onClick={function(){mu({gMode:pair[0]});}} style={{flex:1,textAlign:"center",padding:"8px 4px",borderRadius:7,background:a?card:"transparent",color:a?textMain:textSub,fontSize:13,fontWeight:a?600:400,cursor:"pointer"}}>{pair[1]}</div>);
+                      })}
+                    </div>
+                  )}
+                  {key==="water"&&gMode==="recommended"?(
+                    <div>
+                      {hasWeight&&recGoal?(
+                        <div>
+                          <div style={{background:darkBg,borderRadius:12,padding:"14px 16px",marginBottom:14}}>
+                            <p style={{fontSize:13,fontWeight:700,color:textMain,margin:"0 0 10px"}}>{t.wFormulaTitle}</p>
+                            <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}>
+                              <span style={{fontSize:14}}>⚖️</span>
+                              <span style={{fontSize:13,color:textSub,flex:1}}>{t.wFormulaDesc}</span>
+                              <span style={{fontSize:13,fontWeight:600,color:textMain}}>{recGoal.min}–{recGoal.max} L</span>
+                            </div>
+                            {recGoal.hasWorkout&&(<div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}><span style={{fontSize:14}}>🏋️</span><span style={{fontSize:13,color:green,flex:1}}>{t.wWorkoutBonus}</span></div>)}
+                            {recGoal.isSummer&&(<div style={{display:"flex",alignItems:"center",gap:8}}><span style={{fontSize:14}}>☀️</span><span style={{fontSize:13,color:yellow,flex:1}}>{t.wSummerBonus}</span></div>)}
+                          </div>
+                          <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8,marginBottom:18}}>
+                            {[["min",t.min,recGoal.min],["norm",t.norm,recGoal.norm],["max",t.max,recGoal.max]].map(function(f){return(<div key={f[0]} style={{background:f[0]==="norm"?"#111827":darkBg,borderRadius:10,padding:"10px 6px",textAlign:"center",border:"1px solid "+(f[0]==="norm"?"#111827":border)}}><p style={{fontSize:10,color:f[0]==="norm"?"#aaa":textSub,margin:"0 0 2px",textTransform:"uppercase"}}>{f[1]}</p><p style={{fontSize:18,fontWeight:800,color:f[0]==="norm"?"#fff":textMain,margin:0}}>{f[2]}</p><p style={{fontSize:10,color:f[0]==="norm"?"#aaa":textSub,margin:0}}>L</p></div>);})}
+                          </div>
+                          <div style={{display:"flex",gap:10}}>
+                            <Btn onClick={function(){saveGoals("water",{min:recGoal.min,norm:recGoal.norm,max:recGoal.max});}} v="pri" s={{flex:1,padding:"12px",fontSize:15}}>{t.wApplyRec}</Btn>
+                            <Btn onClick={function(){mu({sPanel:null,gDraft:null});}}>{t.cancel}</Btn>
+                          </div>
+                        </div>
+                      ):(
+                        <div style={{textAlign:"center",padding:"32px 16px"}}>
+                          <p style={{fontSize:36,margin:"0 0 12px"}}>⚖️</p>
+                          <p style={{fontSize:14,color:textSub,margin:0,lineHeight:1.6}}>{t.wNoWeight}</p>
+                        </div>
+                      )}
+                    </div>
+                  ):(
+                    <div>
+                      <div style={{background:darkBg,borderRadius:12,padding:"16px",marginBottom:16}}>
+                        <GoalRow label={t.minimum} f="min"/>
+                        <GoalRow label={t.norm+" ("+t.goalLabel+")"} f="norm"/>
+                        <GoalRow label={t.maximum} f="max"/>
+                      </div>
+                      <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8,marginBottom:16}}>
+                        {["min","norm","max"].map(function(f){return(<div key={f} style={{background:f==="norm"?"#111827":darkBg,borderRadius:10,padding:"10px 6px",textAlign:"center",border:"1px solid "+(f==="norm"?"#111827":border)}}><p style={{fontSize:10,color:f==="norm"?"#aaa":textSub,margin:"0 0 2px",textTransform:"uppercase"}}>{f==="min"?t.min:f==="max"?t.max:t.norm}</p><p style={{fontSize:18,fontWeight:800,color:f==="norm"?"#fff":textMain,margin:0}}>{d[f]}</p><p style={{fontSize:10,color:f==="norm"?"#aaa":textSub,margin:0}}>{m.unit}</p></div>);})}
+                      </div>
+                      <div style={{display:"flex",gap:10}}>
+                        <Btn onClick={function(){saveGoals(key,d);}} v="pri" s={{flex:1,padding:"12px",fontSize:15}}>{t.saveGoals}</Btn>
+                        <Btn onClick={function(){mu({sPanel:null,gDraft:null});}}>{t.cancel}</Btn>
+                      </div>
+                    </div>
+                  )}
                 </Sheet>
               );
             })()}
