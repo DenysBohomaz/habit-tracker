@@ -225,11 +225,14 @@ export default function App(){
   var mig0=useState({loading:false,done:false,error:null}),mig=mig0[0],setMig=mig0[1];
   var TODAY=todayKey();
   var reminderTimers=useRef({});
+  var toasts0=useState([]),toasts=toasts0[0],setToasts=toasts0[1];
   var cursorSave=useRef(null);
   var reflDraftRef=useRef(null);
   var journalTextRef=useRef(null);
   useLayoutEffect(function(){var c=cursorSave.current;if(c&&c.el){try{c.el.setSelectionRange(c.start,c.end);}catch(ex){}cursorSave.current=null;}});
   useEffect(function(){saveLS(st);},[st]);
+  function showToast(msg,type){var id=Date.now();setToasts(function(t){return t.concat([{id:id,msg:String(msg||'Something went wrong'),type:type||'error'}]);});setTimeout(function(){setToasts(function(t){return t.filter(function(x){return x.id!==id;});});},3500);}
+  function isTemp(id){return String(id).startsWith('tmp_');}
   useEffect(function(){
     if(!auth.token){setBsLoad(false);return;}
     setBsLoad(true);
@@ -339,41 +342,154 @@ export default function App(){
     });
     if(pct>0){mu({thumb:setK(ui.thumb,hid,true),hPopup:null});setTimeout(function(){mu({thumb:setK(ui.thumb,hid,false)});},900);}
     else mu({hPopup:null});
+    if(!isTemp(hid)){apiFetch('/habits/'+hid+'/logs',{method:'POST',body:JSON.stringify({date:tod,count:count})}).catch(function(err){showToast(err.message);});}
   }
   function saveH(h){
     if(!h.name.trim())return;
     var clean=Object.assign({},h,{target:Math.max(1,parseInt(h.target)||1)});
-    setSt(function(s){var habits=clean.id?s.habits.map(function(x){return x.id===clean.id?clean:x;}):[].concat(s.habits,[Object.assign({},clean,{id:Date.now()})]);return Object.assign({},s,{habits:habits});});
-    mu({editH:null});
+    var body={name:clean.name,emoji:clean.emoji,freq:clean.freq,time:clean.time,target:clean.target,notes:clean.notes||null,position:clean.position||0};
+    if(clean.id&&!isTemp(clean.id)){
+      setSt(function(s){return Object.assign({},s,{habits:s.habits.map(function(x){return x.id===clean.id?clean:x;})});});
+      mu({editH:null});
+      var prev=st.habits.find(function(x){return x.id===clean.id;});
+      apiFetch('/habits/'+clean.id,{method:'PATCH',body:JSON.stringify(body)}).catch(function(err){setSt(function(s){return Object.assign({},s,{habits:s.habits.map(function(x){return x.id===clean.id?prev:x;})});});showToast(err.message);});
+    } else {
+      var tmpId='tmp_'+Date.now();
+      setSt(function(s){return Object.assign({},s,{habits:s.habits.concat([Object.assign({},clean,{id:tmpId})])});});
+      mu({editH:null});
+      apiFetch('/habits',{method:'POST',body:JSON.stringify(body)}).then(function(created){setSt(function(s){return Object.assign({},s,{habits:s.habits.map(function(x){return x.id===tmpId?created:x;})});});}).catch(function(err){setSt(function(s){return Object.assign({},s,{habits:s.habits.filter(function(x){return x.id!==tmpId;})});});showToast(err.message);});
+    }
   }
-  function delH(id){setSt(function(s){return Object.assign({},s,{habits:s.habits.filter(function(h){return h.id!==id;})});});mu({editH:null,detH:null});}
-  function addTask(text,tag){if(!text.trim())return;var id=Date.now();var tagVal=tag!==undefined?tag:null;setSt(function(s){return Object.assign({},s,{tasks:[].concat(s.tasks,[{id:id,text:text.trim(),done:false,pinned:false,importance:3,urgency:3,tag:tagVal}])});});mu({taskInput:""});}
-  function addTag(name){if(!name.trim())return;var id=Date.now();setSt(function(s){return Object.assign({},s,{tags:[].concat(s.tags,[{id:id,name:name.trim()}])});});mu({tagInput:"",showTagInput:false});}
-  function deleteTag(tagId){setSt(function(s){var tasks=s.tasks.map(function(tk){return tk.tag===tagId?Object.assign({},tk,{tag:null}):tk;});var laterTasks=s.laterTasks.map(function(tk){return tk.tag===tagId?Object.assign({},tk,{tag:null}):tk;});return Object.assign({},s,{tags:s.tags.filter(function(tg){return tg.id!==tagId;}),tasks:tasks,laterTasks:laterTasks});});mu(function(u){return Object.assign({},u,{activeTag:u.activeTag===tagId?null:u.activeTag});});}
-  function setTaskTag(id,tagId,list){setSt(function(s){var key=list==="later"?"laterTasks":"tasks";var arr=s[key].map(function(tk){return tk.id===id?Object.assign({},tk,{tag:tagId}):tk;});var r=Object.assign({},s);r[key]=arr;return r;});}
-  function toggleTaskDone(id,list){setSt(function(s){var key=list==="later"?"laterTasks":"tasks";var arr=s[key].map(function(tk){return tk.id===id?Object.assign({},tk,{done:!tk.done}):tk;});var r=Object.assign({},s);r[key]=arr;return r;});}
-  function togglePin(id){setSt(function(s){var pinCount=s.tasks.filter(function(tk){return tk.pinned&&tk.id!==id;}).length;var arr=s.tasks.map(function(tk){if(tk.id!==id)return tk;if(!tk.pinned&&pinCount>=5)return tk;return Object.assign({},tk,{pinned:!tk.pinned});});return Object.assign({},s,{tasks:arr});});}
-  function moveToLater(tid){setSt(function(s){var task=s.tasks.find(function(tk){return tk.id===tid;});if(!task)return s;return Object.assign({},s,{tasks:s.tasks.filter(function(tk){return tk.id!==tid;}),laterTasks:[].concat(s.laterTasks,[Object.assign({},task,{pinned:false})])});});}
-  function moveToPlan(tid){setSt(function(s){var task=s.laterTasks.find(function(tk){return tk.id===tid;});if(!task)return s;return Object.assign({},s,{laterTasks:s.laterTasks.filter(function(tk){return tk.id!==tid;}),tasks:[].concat(s.tasks,[task])});});}
+  function delH(id){
+    var prev=st.habits.find(function(h){return h.id===id;});
+    setSt(function(s){return Object.assign({},s,{habits:s.habits.filter(function(h){return h.id!==id;})});});
+    mu({editH:null,detH:null});
+    if(!isTemp(id)){apiFetch('/habits/'+id,{method:'DELETE'}).catch(function(err){setSt(function(s){return Object.assign({},s,{habits:s.habits.concat([prev])});});showToast(err.message);});}
+  }
+  function addTask(text,tag){
+    if(!text.trim())return;
+    var tmpId='tmp_'+Date.now(),tagVal=tag!==undefined?tag:null;
+    setSt(function(s){return Object.assign({},s,{tasks:s.tasks.concat([{id:tmpId,text:text.trim(),done:false,pinned:false,importance:3,urgency:3,tag:tagVal,list:'plan'}])});});
+    mu({taskInput:''});
+    apiFetch('/tasks',{method:'POST',body:JSON.stringify({text:text.trim(),done:false,pinned:false,importance:3,urgency:3,list:'plan',tagId:tagVal?String(tagVal):null})}).then(function(created){setSt(function(s){return Object.assign({},s,{tasks:s.tasks.map(function(tk){return tk.id===tmpId?Object.assign({},created,{tag:created.tagId}):tk;})});});}).catch(function(err){setSt(function(s){return Object.assign({},s,{tasks:s.tasks.filter(function(tk){return tk.id!==tmpId;})});});showToast(err.message);});
+  }
+  function addTag(name){
+    if(!name.trim())return;
+    var tmpId='tmp_'+Date.now();
+    setSt(function(s){return Object.assign({},s,{tags:s.tags.concat([{id:tmpId,name:name.trim()}])});});
+    mu({tagInput:'',showTagInput:false});
+    apiFetch('/tags',{method:'POST',body:JSON.stringify({name:name.trim()})}).then(function(created){setSt(function(s){return Object.assign({},s,{tags:s.tags.map(function(tg){return tg.id===tmpId?created:tg;})});});}).catch(function(err){setSt(function(s){return Object.assign({},s,{tags:s.tags.filter(function(tg){return tg.id!==tmpId;})});});showToast(err.message);});
+  }
+  function deleteTag(tagId){
+    var prev=st.tags.find(function(tg){return tg.id===tagId;});
+    var prevTasks=st.tasks.slice(),prevLater=st.laterTasks.slice();
+    setSt(function(s){var tasks=s.tasks.map(function(tk){return tk.tag===tagId?Object.assign({},tk,{tag:null}):tk;});var laterTasks=s.laterTasks.map(function(tk){return tk.tag===tagId?Object.assign({},tk,{tag:null}):tk;});return Object.assign({},s,{tags:s.tags.filter(function(tg){return tg.id!==tagId;}),tasks:tasks,laterTasks:laterTasks});});
+    mu(function(u){return Object.assign({},u,{activeTag:u.activeTag===tagId?null:u.activeTag});});
+    if(!isTemp(tagId)){apiFetch('/tags/'+tagId,{method:'DELETE'}).catch(function(err){setSt(function(s){return Object.assign({},s,{tags:s.tags.concat([prev]),tasks:prevTasks,laterTasks:prevLater});});showToast(err.message);});}
+  }
+  function setTaskTag(id,tagId,list){
+    setSt(function(s){var key=list==="later"?"laterTasks":"tasks";var arr=s[key].map(function(tk){return tk.id===id?Object.assign({},tk,{tag:tagId}):tk;});var r=Object.assign({},s);r[key]=arr;return r;});
+    if(!isTemp(id)){apiFetch('/tasks/'+id,{method:'PATCH',body:JSON.stringify({tagId:tagId?String(tagId):null})}).catch(function(err){showToast(err.message);});}
+  }
+  function toggleTaskDone(id,list){
+    var key=list==="later"?"laterTasks":"tasks";
+    var task=st[key].find(function(tk){return tk.id===id;});
+    var newDone=task?!task.done:true;
+    setSt(function(s){var arr=s[key].map(function(tk){return tk.id===id?Object.assign({},tk,{done:!tk.done}):tk;});var r=Object.assign({},s);r[key]=arr;return r;});
+    if(!isTemp(id)){apiFetch('/tasks/'+id,{method:'PATCH',body:JSON.stringify({done:newDone})}).catch(function(err){setSt(function(s){var arr=s[key].map(function(tk){return tk.id===id?Object.assign({},tk,{done:!newDone}):tk;});var r=Object.assign({},s);r[key]=arr;return r;});showToast(err.message);});}
+  }
+  function togglePin(id){
+    var task=st.tasks.find(function(tk){return tk.id===id;});
+    var newPinned=task?!task.pinned:false;
+    setSt(function(s){var pinCount=s.tasks.filter(function(tk){return tk.pinned&&tk.id!==id;}).length;var arr=s.tasks.map(function(tk){if(tk.id!==id)return tk;if(!tk.pinned&&pinCount>=5)return tk;return Object.assign({},tk,{pinned:!tk.pinned});});return Object.assign({},s,{tasks:arr});});
+    if(!isTemp(id)){apiFetch('/tasks/'+id,{method:'PATCH',body:JSON.stringify({pinned:newPinned})}).catch(function(err){showToast(err.message);});}
+  }
+  function moveToLater(tid){
+    setSt(function(s){var task=s.tasks.find(function(tk){return tk.id===tid;});if(!task)return s;return Object.assign({},s,{tasks:s.tasks.filter(function(tk){return tk.id!==tid;}),laterTasks:s.laterTasks.concat([Object.assign({},task,{pinned:false})])});});
+    if(!isTemp(tid)){apiFetch('/tasks/'+tid,{method:'PATCH',body:JSON.stringify({list:'later',pinned:false})}).catch(function(err){showToast(err.message);});}
+  }
+  function moveToPlan(tid){
+    setSt(function(s){var task=s.laterTasks.find(function(tk){return tk.id===tid;});if(!task)return s;return Object.assign({},s,{laterTasks:s.laterTasks.filter(function(tk){return tk.id!==tid;}),tasks:s.tasks.concat([task])});});
+    if(!isTemp(tid)){apiFetch('/tasks/'+tid,{method:'PATCH',body:JSON.stringify({list:'plan'})}).catch(function(err){showToast(err.message);});}
+  }
   function reorderTask(fromIdx,toIdx,list){if(fromIdx===toIdx)return;setSt(function(s){var key=list==="later"?"laterTasks":"tasks";var arr=s[key].slice();var item=arr.splice(fromIdx,1)[0];arr.splice(toIdx,0,item);var r=Object.assign({},s);r[key]=arr;return r;});mu({taskDragIdx:null,taskDragOver:null,taskDragList:null});}
-  function setTaskPri(id,imp,urg,list){setSt(function(s){var key=list==="later"?"laterTasks":"tasks";var arr=s[key].map(function(tk){return tk.id===id?Object.assign({},tk,{importance:imp,urgency:urg}):tk;});var r=Object.assign({},s);r[key]=arr;return r;});}
+  function setTaskPri(id,imp,urg,list){
+    setSt(function(s){var key=list==="later"?"laterTasks":"tasks";var arr=s[key].map(function(tk){return tk.id===id?Object.assign({},tk,{importance:imp,urgency:urg}):tk;});var r=Object.assign({},s);r[key]=arr;return r;});
+    if(!isTemp(id)){apiFetch('/tasks/'+id,{method:'PATCH',body:JSON.stringify({importance:imp,urgency:urg})}).catch(function(err){showToast(err.message);});}
+  }
   function sortByScore(){setSt(function(s){var pinned=s.tasks.filter(function(tk){return tk.pinned;});var unpinned=s.tasks.filter(function(tk){return !tk.pinned;}).sort(function(a,b){return(b.importance*0.7+b.urgency*0.3)-(a.importance*0.7+a.urgency*0.3);});return Object.assign({},s,{tasks:pinned.concat(unpinned)});});}
   function sortLaterByScore(){setSt(function(s){var sorted=s.laterTasks.slice().sort(function(a,b){return(b.importance*0.7+b.urgency*0.3)-(a.importance*0.7+a.urgency*0.3);});return Object.assign({},s,{laterTasks:sorted});});}
-  function deleteTask(id,list){setSt(function(s){var key=list==="later"?"laterTasks":"tasks";var r=Object.assign({},s);r[key]=s[key].filter(function(tk){return tk.id!==id;});return r;});}
-  function updateTaskText(id,text,list){if(!text.trim())return;setSt(function(s){var key=list==="later"?"laterTasks":"tasks";var arr=s[key].map(function(tk){return tk.id===id?Object.assign({},tk,{text:text.trim()}):tk;});var r=Object.assign({},s);r[key]=arr;return r;});}
-  function saveTaskEdit(id,updates,list){if(updates.text&&!updates.text.trim())return;var u=Object.assign({},updates);if(u.text)u.text=u.text.trim();setSt(function(s){var key=list==="later"?"laterTasks":"tasks";var arr=s[key].map(function(tk){return tk.id===id?Object.assign({},tk,u):tk;});var r=Object.assign({},s);r[key]=arr;return r;});}
+  function deleteTask(id,list){
+    var key=list==="later"?"laterTasks":"tasks";
+    var prev=st[key].find(function(tk){return tk.id===id;});
+    setSt(function(s){var r=Object.assign({},s);r[key]=s[key].filter(function(tk){return tk.id!==id;});return r;});
+    if(!isTemp(id)){apiFetch('/tasks/'+id,{method:'DELETE'}).catch(function(err){setSt(function(s){var r=Object.assign({},s);r[key]=s[key].concat([prev]);return r;});showToast(err.message);});}
+  }
+  function updateTaskText(id,text,list){
+    if(!text.trim())return;
+    setSt(function(s){var key=list==="later"?"laterTasks":"tasks";var arr=s[key].map(function(tk){return tk.id===id?Object.assign({},tk,{text:text.trim()}):tk;});var r=Object.assign({},s);r[key]=arr;return r;});
+    if(!isTemp(id)){apiFetch('/tasks/'+id,{method:'PATCH',body:JSON.stringify({text:text.trim()})}).catch(function(err){showToast(err.message);});}
+  }
+  function saveTaskEdit(id,updates,list){
+    if(updates.text&&!updates.text.trim())return;
+    var u=Object.assign({},updates);if(u.text)u.text=u.text.trim();
+    var key=list==="later"?"laterTasks":"tasks";
+    var prev=st[key].find(function(tk){return tk.id===id;});
+    setSt(function(s){var arr=s[key].map(function(tk){return tk.id===id?Object.assign({},tk,u):tk;});var r=Object.assign({},s);r[key]=arr;return r;});
+    if(!isTemp(id)){var p=Object.assign({},u);if(p.tag!==undefined){p.tagId=p.tag?String(p.tag):null;delete p.tag;}apiFetch('/tasks/'+id,{method:'PATCH',body:JSON.stringify(p)}).catch(function(err){setSt(function(s){var arr=s[key].map(function(tk){return tk.id===id?prev:tk;});var r=Object.assign({},s);r[key]=arr;return r;});showToast(err.message);});}
+  }
   function requestNotifPermission(){if("Notification" in window&&Notification.permission==="default"){Notification.requestPermission();}}
-  function setSteps(v){var raw=parseInt(v),tod=TODAY;setSt(function(s){var sl=Object.assign({},s.stepsLog||{});sl[tod]=isNaN(raw)||raw<0?0:Math.min(STP_X,raw);return Object.assign({},s,{stepsLog:sl});});}
+  function setSteps(v){
+    var raw=parseInt(v),tod=TODAY,next=isNaN(raw)||raw<0?0:Math.min(STP_X,raw);
+    setSt(function(s){var sl=Object.assign({},s.stepsLog||{});sl[tod]=next;return Object.assign({},s,{stepsLog:sl});});
+    apiFetch('/metrics',{method:'POST',body:JSON.stringify({date:tod,steps:next})}).catch(function(err){showToast(err.message);});
+  }
   function getDayEntries(date){var raw=st.dayNotes[date];if(!raw)return[];if(typeof raw==="string"){return raw.trim()?[{text:raw,time:(st.dayNotesTime&&st.dayNotesTime[date])||null}]:[];}return raw;}
-  function addDayEntry(date,text){if(!text||!text.trim())return;setSt(function(s){var d=Object.assign({},s.dayNotes);var raw=d[date];var entries;if(!raw)entries=[];else if(typeof raw==="string")entries=raw.trim()?[{text:raw,time:(s.dayNotesTime&&s.dayNotesTime[date])||null}]:[];else entries=raw.slice();entries=entries.concat([{text:text.trim(),time:Date.now()}]);d[date]=entries;return Object.assign({},s,{dayNotes:d});});}
-  function editDayEntry(date,idx,text){setSt(function(s){var d=Object.assign({},s.dayNotes);var raw=d[date];var entries;if(!raw)return s;if(typeof raw==="string")entries=raw.trim()?[{text:raw,time:(s.dayNotesTime&&s.dayNotesTime[date])||null}]:[];else entries=raw.slice();if(idx<0||idx>=entries.length)return s;if(!text||!text.trim()){entries.splice(idx,1);}else{entries[idx]=Object.assign({},entries[idx],{text:text.trim()});}if(entries.length===0)delete d[date];else d[date]=entries;return Object.assign({},s,{dayNotes:d});});}
+  function addDayEntry(date,text){
+    if(!text||!text.trim())return;
+    setSt(function(s){var d=Object.assign({},s.dayNotes);var raw=d[date];var entries;if(!raw)entries=[];else if(typeof raw==="string")entries=raw.trim()?[{text:raw,time:(s.dayNotesTime&&s.dayNotesTime[date])||null}]:[];else entries=raw.slice();entries=entries.concat([{text:text.trim(),time:Date.now()}]);d[date]=entries;return Object.assign({},s,{dayNotes:d});});
+    apiFetch('/journal',{method:'POST',body:JSON.stringify({date:date,text:text.trim()})}).then(function(created){setSt(function(s){var d=Object.assign({},s.dayNotes);var entries=(d[date]||[]).slice();for(var i=entries.length-1;i>=0;i--){if(!entries[i]._id){entries[i]=Object.assign({},entries[i],{_id:created.id});break;}}d[date]=entries;return Object.assign({},s,{dayNotes:d});});}).catch(function(err){showToast(err.message);});
+  }
+  function editDayEntry(date,idx,text){
+    var entries=getDayEntries(date);
+    var entry=entries[idx];
+    setSt(function(s){var d=Object.assign({},s.dayNotes);var raw=d[date];var ents;if(!raw)return s;if(typeof raw==="string")ents=raw.trim()?[{text:raw,time:(s.dayNotesTime&&s.dayNotesTime[date])||null}]:[];else ents=raw.slice();if(idx<0||idx>=ents.length)return s;if(!text||!text.trim()){ents.splice(idx,1);}else{ents[idx]=Object.assign({},ents[idx],{text:text.trim()});}if(ents.length===0)delete d[date];else d[date]=ents;return Object.assign({},s,{dayNotes:d});});
+    if(entry&&entry._id){if(!text||!text.trim()){apiFetch('/journal/'+entry._id,{method:'DELETE'}).catch(function(err){showToast(err.message);});}else{apiFetch('/journal/'+entry._id,{method:'PATCH',body:JSON.stringify({text:text.trim()})}).catch(function(err){showToast(err.message);});}}
+  }
   function setDayNote(date,v){setSt(function(s){var d=Object.assign({},s.dayNotes);var dt=Object.assign({},s.dayNotesTime||{});d[date]=v;if(v&&v.trim())dt[date]=Date.now();else delete dt[date];return Object.assign({},s,{dayNotes:d,dayNotesTime:dt});});}
-  function addW(d){var next=Math.max(0,Math.min(WX,Math.round((wl+d)*10)/10)),tod=TODAY;setSt(function(s){var w=Object.assign({},s.water);w[tod]=next;return Object.assign({},s,{water:w});});}
-  function addCal(v){var tod=TODAY;setSt(function(s){var c=Object.assign({},s.calories);c[tod]=Math.max(0,(c[tod]||0)+v);return Object.assign({},s,{calories:c});});}
+  function addW(d){
+    var next=Math.max(0,Math.min(WX,Math.round((wl+d)*10)/10)),tod=TODAY;
+    setSt(function(s){var w=Object.assign({},s.water);w[tod]=next;return Object.assign({},s,{water:w});});
+    apiFetch('/metrics',{method:'POST',body:JSON.stringify({date:tod,water:next})}).catch(function(err){showToast(err.message);});
+  }
+  function addCal(v){
+    var tod=TODAY,next=Math.max(0,(calT||0)+v);
+    setSt(function(s){var c=Object.assign({},s.calories);c[tod]=next;return Object.assign({},s,{calories:c});});
+    apiFetch('/metrics',{method:'POST',body:JSON.stringify({date:tod,calories:next})}).catch(function(err){showToast(err.message);});
+  }
   function setNote(v){var tod=TODAY;setSt(function(s){var d=Object.assign({},s.dayNotes);var dt=Object.assign({},s.dayNotesTime||{});d[tod]=v;if(v&&v.trim())dt[tod]=Date.now();else delete dt[tod];return Object.assign({},s,{dayNotes:d,dayNotesTime:dt});});}
-  function setSleep(v){var raw=parseFloat(v),cap=st.goals.sleep.max,val=isNaN(raw)?"":String(Math.min(cap,raw)),tod=TODAY;setSt(function(s){var sl=Object.assign({},s.sleep);sl[tod]=val;return Object.assign({},s,{sleep:sl});});}
-  function saveGoals(key,draft){setSt(function(s){var g=Object.assign({},s.goals);g[key]=Object.assign({},draft);return Object.assign({},s,{goals:g});});mu({sPanel:null,gDraft:null});}
-  function applyCal(r){var wz=ui.wiz;setSt(function(s){var g=Object.assign({},s.goals);g.calories={min:r.min,norm:r.norm,max:r.max};var cwd={gender:wz.gender,W:wz.W,H:wz.H,A:wz.A,goal:wz.goal,act:wz.act};return Object.assign({},s,{goals:g,calWizData:cwd});});mu({wiz:null});}
+  function setSleep(v){
+    var raw=parseFloat(v),cap=st.goals.sleep.max,val=isNaN(raw)?"":String(Math.min(cap,raw)),tod=TODAY;
+    setSt(function(s){var sl=Object.assign({},s.sleep);sl[tod]=val;return Object.assign({},s,{sleep:sl});});
+    if(val){apiFetch('/metrics',{method:'POST',body:JSON.stringify({date:tod,sleep:parseFloat(val)})}).catch(function(err){showToast(err.message);});}
+  }
+  function saveGoals(key,draft){
+    var prev=st.goals[key];
+    setSt(function(s){var g=Object.assign({},s.goals);g[key]=Object.assign({},draft);return Object.assign({},s,{goals:g});});
+    mu({sPanel:null,gDraft:null});
+    var ng=Object.assign({},st.goals);ng[key]=draft;
+    var p={waterMin:ng.water.min,waterNorm:ng.water.norm,waterMax:ng.water.max,sleepMin:ng.sleep.min,sleepNorm:ng.sleep.norm,sleepMax:ng.sleep.max,calMin:ng.calories.min,calNorm:ng.calories.norm,calMax:ng.calories.max,stepsMin:ng.steps.min,stepsNorm:ng.steps.norm,stepsMax:ng.steps.max};
+    apiFetch('/goals',{method:'PUT',body:JSON.stringify(p)}).catch(function(err){setSt(function(s){var g=Object.assign({},s.goals);g[key]=prev;return Object.assign({},s,{goals:g});});showToast(err.message);});
+  }
+  function applyCal(r){
+    var wz=ui.wiz;
+    setSt(function(s){var g=Object.assign({},s.goals);g.calories={min:r.min,norm:r.norm,max:r.max};var cwd={gender:wz.gender,W:wz.W,H:wz.H,A:wz.A,goal:wz.goal,act:wz.act};return Object.assign({},s,{goals:g,calWizData:cwd});});
+    mu({wiz:null});
+    var ng=Object.assign({},st.goals,{calories:{min:r.min,norm:r.norm,max:r.max}});
+    var gp={waterMin:ng.water.min,waterNorm:ng.water.norm,waterMax:ng.water.max,sleepMin:ng.sleep.min,sleepNorm:ng.sleep.norm,sleepMax:ng.sleep.max,calMin:r.min,calNorm:r.norm,calMax:r.max,stepsMin:ng.steps.min,stepsNorm:ng.steps.norm,stepsMax:ng.steps.max};
+    var pp={gender:wz.gender,weightKg:parseFloat(wz.W)||null,heightCm:parseFloat(wz.H)||null,age:parseInt(wz.A)||null,goal:wz.goal,activity:parseFloat(wz.act)||null};
+    Promise.all([apiFetch('/goals',{method:'PUT',body:JSON.stringify(gp)}),apiFetch('/profile',{method:'PUT',body:JSON.stringify(pp)})]).catch(function(err){showToast(err.message);});
+  }
 
   async function doLogin(){
     mauth({loading:true,error:null});
@@ -1755,6 +1871,18 @@ export default function App(){
             </div>
           </div>
         )}
+
+      {toasts.length>0&&(
+        <div style={{position:"fixed",bottom:24,left:"50%",transform:"translateX(-50%)",zIndex:9999,display:"flex",flexDirection:"column",gap:8,alignItems:"center",pointerEvents:"none"}}>
+          {toasts.map(function(toast){
+            return(
+              <div key={toast.id} style={{background:toast.type==="success"?"#16a34a":"#dc2626",color:"#fff",borderRadius:12,padding:"12px 20px",fontSize:14,fontWeight:600,boxShadow:"0 4px 20px rgba(0,0,0,0.25)",maxWidth:320,textAlign:"center",pointerEvents:"auto"}}>
+                {toast.msg}
+              </div>
+            );
+          })}
+        </div>
+      )}
 
       </div>
     </div>
