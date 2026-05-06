@@ -43,6 +43,8 @@ var I18N = {
     sectionNorms:"Norms",sectionSystem:"System",
     profGender:"Gender",profAge:"Age",profWeight:"Weight",profHeight:"Height",profGoal:"Goal",
     profMale:"Male",profFemale:"Female",profNoData:"Not set",
+    signIn:"Sign In",signUp:"Sign Up",password:"Password",yourName:"Your name",account:"Account",signOut:"Sign out",
+    importData:"Import local data",importDataSub:"Move your saved habits, tasks & journal to cloud",importDone:"Data imported successfully!",syncing:"Loading your data...",
   },
   uk: {
     hello:"Привіт",helloDefault:"Чемпіоне",profile:"Профіль",profileName:"Ваше ім'я",profilePlaceholder:"Введіть ваше ім'я...",today:"Сьогодні",calendar:"Календар",analytics:"Аналітика",settings:"Налаштування",
@@ -84,11 +86,89 @@ var I18N = {
     sectionNorms:"Норми",sectionSystem:"Системні налаштування",
     profGender:"Стать",profAge:"Вік",profWeight:"Вага",profHeight:"Зріст",profGoal:"Ціль",
     profMale:"Чоловік",profFemale:"Жінка",profNoData:"Не вказано",
+    signIn:"Увійти",signUp:"Зареєструватись",password:"Пароль",yourName:"Ваше ім'я",account:"Акаунт",signOut:"Вийти",
+    importData:"Перенести локальні дані",importDataSub:"Перенести збережені звички, задачі та журнал у хмару",importDone:"Дані успішно перенесено!",syncing:"Завантаження даних...",
   }
 };
 
 function loadLS(){try{var r=localStorage.getItem(SK);return r?JSON.parse(r):null;}catch(e){return null;}}
 function saveLS(s){try{localStorage.setItem(SK,JSON.stringify(s));}catch(e){}}
+
+var API=typeof import.meta!=='undefined'&&import.meta.env&&import.meta.env.VITE_API_URL?import.meta.env.VITE_API_URL:'http://localhost:3000';
+function getTok(){try{return localStorage.getItem('cht_tok');}catch(e){return null;}}
+function setTok(t){try{if(t)localStorage.setItem('cht_tok',t);else localStorage.removeItem('cht_tok');}catch(e){}}
+async function apiFetch(path,opts){
+  var tok=getTok();
+  var hdrs=Object.assign({'Content-Type':'application/json'},tok?{Authorization:'Bearer '+tok}:{});
+  var res=await fetch(API+path,Object.assign({},opts,{headers:hdrs}));
+  var json=await res.json();
+  if(!res.ok)throw Object.assign(new Error(json.error||'Request failed'),{status:res.status});
+  return json;
+}
+function fromBootstrap(data){
+  var counts={},checked={};
+  (data.habitLogs||[]).forEach(function(log){
+    var d=log.date,hid=log.habitId,cnt=parseFloat(log.count)||0;
+    if(!counts[d])counts[d]={};counts[d][hid]=cnt;
+    if(!checked[d])checked[d]=[];
+    if(cnt>0&&!checked[d].includes(hid))checked[d].push(hid);
+  });
+  var water={},sleep={},calories={},stepsLog={};
+  (data.metrics||[]).forEach(function(m){
+    if(m.water&&parseFloat(m.water))water[m.date]=parseFloat(m.water);
+    if(m.sleep!=null&&m.sleep!=='')sleep[m.date]=String(parseFloat(m.sleep));
+    if(m.calories&&parseFloat(m.calories))calories[m.date]=parseFloat(m.calories);
+    if(m.steps)stepsLog[m.date]=m.steps;
+  });
+  var dayNotes={};
+  (data.journal||[]).forEach(function(j){
+    if(!dayNotes[j.date])dayNotes[j.date]=[];
+    dayNotes[j.date]=dayNotes[j.date].concat([{text:j.text,time:j.createdAt?new Date(j.createdAt).getTime():null,_id:j.id}]);
+  });
+  var g=data.goals||{};
+  var goals={
+    water:{min:parseFloat(g.waterMin)||1,norm:parseFloat(g.waterNorm)||3,max:parseFloat(g.waterMax)||4},
+    sleep:{min:parseFloat(g.sleepMin)||6,norm:parseFloat(g.sleepNorm)||8,max:parseFloat(g.sleepMax)||10},
+    calories:{min:parseInt(g.calMin)||1200,norm:parseInt(g.calNorm)||2000,max:parseInt(g.calMax)||2800},
+    steps:{min:parseInt(g.stepsMin)||5000,norm:parseInt(g.stepsNorm)||8000,max:parseInt(g.stepsMax)||15000},
+  };
+  var ls=loadLS()||{};
+  return{
+    habits:data.habits||[],counts:counts,checked:checked,
+    water:water,sleep:sleep,calories:calories,stepsLog:stepsLog,
+    dayNotes:dayNotes,dayNotesTime:{},goals:goals,
+    tasks:(data.tasks||[]).map(function(tk){return Object.assign({},tk,{tag:tk.tagId});}),
+    laterTasks:(data.laterTasks||[]).map(function(tk){return Object.assign({},tk,{tag:tk.tagId});}),
+    tags:data.tags||[],
+    lang:ls.lang||'en',theme:ls.theme||'morning',
+    profileName:(data.user&&data.user.name)||ls.profileName||'',
+    calWizData:ls.calWizData||null,
+  };
+}
+function toMigratePayload(saved){
+  var hmap={};
+  (saved.habits||[]).forEach(function(h){hmap[String(h.id)]={name:h.name,emoji:h.emoji,freq:h.freq||[],time:h.time||'anytime',target:h.target||1,notes:h.notes||null,position:h.position||0};});
+  var logs=[];
+  Object.keys(saved.counts||{}).forEach(function(date){Object.keys(saved.counts[date]||{}).forEach(function(hid){var cnt=saved.counts[date][hid];if(cnt>0)logs.push({habitId:String(hid),date:date,count:cnt});});});
+  var tmap={};
+  (saved.tags||[]).forEach(function(tg){tmap[String(tg.id)]={name:tg.name};});
+  var tasks=(saved.tasks||[]).map(function(tk){return{text:tk.text,description:tk.description||null,list:'plan',done:tk.done||false,pinned:tk.pinned||false,importance:tk.importance||3,urgency:tk.urgency||3,position:tk.position||0,deadline:tk.deadline||null,reminder:tk.reminder||null,tagId:tk.tag?String(tk.tag):null};});
+  var laterTasks=(saved.laterTasks||[]).map(function(tk){return{text:tk.text,description:tk.description||null,list:'later',done:tk.done||false,pinned:false,importance:tk.importance||3,urgency:tk.urgency||3,position:tk.position||0,tagId:tk.tag?String(tk.tag):null};});
+  var mmap={};
+  var addM=function(d,k,v){if(!mmap[d])mmap[d]={date:d};mmap[d][k]=v;};
+  Object.keys(saved.water||{}).forEach(function(d){addM(d,'water',saved.water[d]);});
+  Object.keys(saved.sleep||{}).forEach(function(d){var v=parseFloat(saved.sleep[d]);if(!isNaN(v))addM(d,'sleep',v);});
+  Object.keys(saved.calories||{}).forEach(function(d){addM(d,'calories',saved.calories[d]);});
+  Object.keys(saved.stepsLog||{}).forEach(function(d){addM(d,'steps',saved.stepsLog[d]);});
+  var journal=[];
+  Object.keys(saved.dayNotes||{}).forEach(function(date){var raw=saved.dayNotes[date];if(!raw)return;if(typeof raw==='string'){if(raw.trim())journal.push({date:date,text:raw});}else{(raw||[]).forEach(function(e){if(e&&e.text&&e.text.trim())journal.push({date:date,text:e.text});});}});
+  var g=saved.goals||{};
+  var goals={waterMin:(g.water&&g.water.min)||1,waterNorm:(g.water&&g.water.norm)||3,waterMax:(g.water&&g.water.max)||4,sleepMin:(g.sleep&&g.sleep.min)||6,sleepNorm:(g.sleep&&g.sleep.norm)||8,sleepMax:(g.sleep&&g.sleep.max)||10,calMin:(g.calories&&g.calories.min)||1200,calNorm:(g.calories&&g.calories.norm)||2000,calMax:(g.calories&&g.calories.max)||2800,stepsMin:(g.steps&&g.steps.min)||5000,stepsNorm:(g.steps&&g.steps.norm)||8000,stepsMax:(g.steps&&g.steps.max)||15000};
+  var cw=saved.calWizData;
+  var bodyProfile=cw?{gender:cw.gender||null,weightKg:parseFloat(cw.W)||null,heightCm:parseFloat(cw.H)||null,age:parseInt(cw.A)||null,goal:cw.goal||null,activity:parseFloat(cw.act)||null}:undefined;
+  return{habits:hmap,habitLogs:logs,tasks:tasks,laterTasks:laterTasks,tags:tmap,metrics:Object.values(mmap),journal:journal,goals:goals,bodyProfile:bodyProfile};
+}
+
 function todayKey(){return new Date().toISOString().slice(0,10);}
 function isoD(d){return d.toISOString().slice(0,10);}
 function dow(iso){return DAYS[new Date(iso).getDay()];}
@@ -138,6 +218,11 @@ function initUi(){return{tab:"today",aTab:"general",yr:new Date().getFullYear(),
 export default function App(){
   var st0=useState(initSt),st=st0[0],setSt=st0[1];
   var ui0=useState(initUi),ui=ui0[0],setUi=ui0[1];
+  var auth0=useState(function(){return{token:getTok(),user:null,loading:false,error:null,mode:'login',email:'',password:'',name:''};});
+  var auth=auth0[0],setAuth=auth0[1];
+  function mauth(p){setAuth(function(a){return Object.assign({},a,p);});}
+  var bsLoad0=useState(!!getTok()),bsLoad=bsLoad0[0],setBsLoad=bsLoad0[1];
+  var mig0=useState({loading:false,done:false,error:null}),mig=mig0[0],setMig=mig0[1];
   var TODAY=todayKey();
   var reminderTimers=useRef({});
   var cursorSave=useRef(null);
@@ -145,6 +230,11 @@ export default function App(){
   var journalTextRef=useRef(null);
   useLayoutEffect(function(){var c=cursorSave.current;if(c&&c.el){try{c.el.setSelectionRange(c.start,c.end);}catch(ex){}cursorSave.current=null;}});
   useEffect(function(){saveLS(st);},[st]);
+  useEffect(function(){
+    if(!auth.token){setBsLoad(false);return;}
+    setBsLoad(true);
+    apiFetch('/bootstrap').then(function(data){setSt(fromBootstrap(data));setBsLoad(false);}).catch(function(err){if(err.status===401){setTok(null);mauth({token:null,user:null});}setBsLoad(false);});
+  },[auth.token]);
   useEffect(function(){
     Object.values(reminderTimers.current).forEach(clearTimeout);
     reminderTimers.current={};
@@ -285,6 +375,27 @@ export default function App(){
   function saveGoals(key,draft){setSt(function(s){var g=Object.assign({},s.goals);g[key]=Object.assign({},draft);return Object.assign({},s,{goals:g});});mu({sPanel:null,gDraft:null});}
   function applyCal(r){var wz=ui.wiz;setSt(function(s){var g=Object.assign({},s.goals);g.calories={min:r.min,norm:r.norm,max:r.max};var cwd={gender:wz.gender,W:wz.W,H:wz.H,A:wz.A,goal:wz.goal,act:wz.act};return Object.assign({},s,{goals:g,calWizData:cwd});});mu({wiz:null});}
 
+  async function doLogin(){
+    mauth({loading:true,error:null});
+    try{var data=await apiFetch('/auth/login',{method:'POST',body:JSON.stringify({email:auth.email,password:auth.password})});setTok(data.token);mauth({token:data.token,user:data.user,loading:false,email:'',password:'',error:null});}
+    catch(err){mauth({loading:false,error:err.message||'Login failed'});}
+  }
+  async function doRegister(){
+    mauth({loading:true,error:null});
+    try{var data=await apiFetch('/auth/register',{method:'POST',body:JSON.stringify({email:auth.email,password:auth.password,name:auth.name||undefined})});setTok(data.token);mauth({token:data.token,user:data.user,loading:false,email:'',password:'',name:'',error:null});}
+    catch(err){mauth({loading:false,error:err.message||'Registration failed'});}
+  }
+  function doLogout(){setTok(null);mauth({token:null,user:null,mode:'login',email:'',password:'',name:'',error:null});setSt(initSt);setMig({loading:false,done:false,error:null});}
+  async function doMigrate(){
+    var saved=loadLS();if(!saved)return;
+    setMig({loading:true,done:false,error:null});
+    try{
+      await apiFetch('/migrate',{method:'POST',body:JSON.stringify(toMigratePayload(saved))});
+      var data=await apiFetch('/bootstrap');setSt(fromBootstrap(data));
+      setMig({loading:false,done:true,error:null});
+    }catch(err){setMig({loading:false,done:false,error:err.message||'Import failed'});}
+  }
+
   function Btn(p){
     var vs={def:{background:darkBg,color:textMain,border:"1px solid "+border},pri:{background:"#111827",color:"#fff",border:"none"},dan:{background:redBg,color:red,border:"1px solid "+redBo}};
     var v=vs[p.v||"def"];
@@ -321,6 +432,58 @@ export default function App(){
   CSS+="@keyframes wkPoseB{0%,49%{opacity:0}50%,100%{opacity:1}}";
 
   var PRESETS_L=[{id:"daily",label:t.everyDay,days:["sun","mon","tue","wed","thu","fri","sat"]},{id:"weekdays",label:t.weekdays,days:["mon","tue","wed","thu","fri"]},{id:"weekends",label:t.weekends,days:["sat","sun"]}];
+
+  var inputSt={width:"100%",padding:"13px 14px",borderRadius:"12px",border:"1.5px solid "+border,background:darkBg,color:textMain,fontSize:15,outline:"none",boxSizing:"border-box",marginBottom:10,fontFamily:"inherit"};
+
+  // ── Auth guard ────────────────────────────────────────────────────────────────
+  if(!auth.token){
+    var isReg=auth.mode==='register';
+    return(
+      <div style={{minHeight:"100vh",background:bg,fontFamily:"-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif",display:"flex",alignItems:"center",justifyContent:"center",padding:16}}>
+        <style>{CSS}</style>
+        <div style={{width:"100%",maxWidth:400}}>
+          <div style={{textAlign:"center",marginBottom:28}}>
+            <p style={{fontSize:44,margin:"0 0 6px"}}>📋</p>
+            <p style={{fontSize:26,fontWeight:800,color:textMain,margin:"0 0 4px"}}>Habit Tracker</p>
+            <p style={{fontSize:14,color:textSub,margin:0}}>{isReg?"Create your account":"Welcome back"}</p>
+          </div>
+          <div style={{background:card,borderRadius:20,padding:"24px 20px",boxShadow:"0 4px 32px rgba(0,0,0,0.10)"}}>
+            <div style={{display:"flex",borderRadius:12,border:"1px solid "+border,overflow:"hidden",marginBottom:20}}>
+              {['login','register'].map(function(mode){
+                var active=auth.mode===mode;
+                return <button key={mode} onClick={function(){mauth({mode:mode,error:null});}} style={{flex:1,padding:"10px 0",background:active?textMain:card,color:active?card:textSub,border:"none",fontSize:14,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>{mode==='login'?t.signIn:t.signUp}</button>;
+              })}
+            </div>
+            {isReg&&<input type="text" placeholder={t.yourName} value={auth.name} onChange={function(e){mauth({name:e.target.value});}} style={inputSt}/>}
+            <input type="email" placeholder="Email" value={auth.email} onChange={function(e){mauth({email:e.target.value});}} style={inputSt}/>
+            <input type="password" placeholder={t.password} value={auth.password} onChange={function(e){mauth({password:e.target.value});}} onKeyDown={function(e){if(e.key==='Enter'){isReg?doRegister():doLogin();}}} style={Object.assign({},inputSt,{marginBottom:16})}/>
+            {auth.error&&<p style={{fontSize:13,color:red,margin:"0 0 12px",textAlign:"center"}}>{auth.error}</p>}
+            <button onClick={function(){isReg?doRegister():doLogin();}} disabled={auth.loading} style={{width:"100%",padding:"13px",borderRadius:12,background:textMain,color:card,border:"none",fontSize:15,fontWeight:700,cursor:"pointer",fontFamily:"inherit",opacity:auth.loading?0.6:1}}>
+              {auth.loading?"...":(isReg?t.signUp:t.signIn)}
+            </button>
+          </div>
+          <div style={{textAlign:"center",marginTop:16,display:"flex",justifyContent:"center",gap:8}}>
+            {["en","uk"].map(function(l){return(
+              <button key={l} onClick={function(){mst({lang:l});}} style={{background:"transparent",border:"none",cursor:"pointer",fontSize:13,fontWeight:st.lang===l?700:400,color:st.lang===l?textMain:textLight,fontFamily:"inherit"}}>{l==="en"?"English":"Українська"}</button>
+            );}) }
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Bootstrap loading ─────────────────────────────────────────────────────────
+  if(bsLoad){
+    return(
+      <div style={{minHeight:"100vh",background:bg,fontFamily:"-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif",display:"flex",alignItems:"center",justifyContent:"center"}}>
+        <style>{CSS}</style>
+        <div style={{textAlign:"center"}}>
+          <p style={{fontSize:40,margin:"0 0 12px"}}>⏳</p>
+          <p style={{fontSize:15,color:textSub,fontWeight:500,margin:0}}>{t.syncing}</p>
+        </div>
+      </div>
+    );
+  }
 
   if(ui.detH&&detH) return(
     <div style={{minHeight:"100vh",background:bg,fontFamily:"-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif"}}>
@@ -1199,6 +1362,35 @@ export default function App(){
                 </div>
               </Card>
             );}())}
+
+            <p style={{fontSize:12,fontWeight:700,color:textLight,textTransform:"uppercase",letterSpacing:"0.06em",margin:"4px 0 10px"}}>{t.account}</p>
+
+            <Card s={{marginBottom:16,padding:"14px 16px"}}>
+              <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:mig.done||(loadLS()&&!mig.done)?0:0}}>
+                <div style={{width:40,height:40,borderRadius:12,background:darkBg,border:"1px solid "+border,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18}}>👤</div>
+                <div style={{flex:1,minWidth:0}}>
+                  <p style={{fontSize:14,fontWeight:600,margin:"0 0 1px",color:textMain,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{(auth.user&&auth.user.email)||auth.email||"Account"}</p>
+                  <p style={{fontSize:11,color:green,margin:0,fontWeight:500}}>☁ Cloud sync active</p>
+                </div>
+                <button onClick={doLogout} style={{background:redBg,color:red,border:"1px solid "+redBo,borderRadius:8,padding:"6px 12px",fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap"}}>{t.signOut}</button>
+              </div>
+              {(function(){
+                var saved=loadLS();
+                var hasData=saved&&(saved.habits&&saved.habits.length||saved.tasks&&saved.tasks.length||saved.laterTasks&&saved.laterTasks.length);
+                if(!hasData||mig.done)return null;
+                return(
+                  <div style={{marginTop:14,paddingTop:14,borderTop:"1px solid "+border}}>
+                    <p style={{fontSize:13,fontWeight:600,color:textMain,margin:"0 0 2px"}}>{t.importData}</p>
+                    <p style={{fontSize:12,color:textSub,margin:"0 0 10px"}}>{t.importDataSub}</p>
+                    {mig.error&&<p style={{fontSize:12,color:red,margin:"0 0 8px"}}>{mig.error}</p>}
+                    <button onClick={doMigrate} disabled={mig.loading} style={{width:"100%",padding:"10px",borderRadius:10,background:textMain,color:card,border:"none",fontSize:14,fontWeight:600,cursor:"pointer",fontFamily:"inherit",opacity:mig.loading?0.6:1}}>
+                      {mig.loading?"Importing...":"📦 "+t.importData}
+                    </button>
+                  </div>
+                );
+              })()}
+              {mig.done&&<p style={{fontSize:13,color:green,fontWeight:600,margin:"10px 0 0",textAlign:"center"}}>✅ {t.importDone}</p>}
+            </Card>
 
             <p style={{fontSize:12,fontWeight:700,color:textLight,textTransform:"uppercase",letterSpacing:"0.06em",margin:"4px 0 10px"}}>{t.sectionSystem}</p>
 
