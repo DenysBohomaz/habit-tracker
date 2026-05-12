@@ -92,7 +92,9 @@ var I18N = {
 };
 
 function loadLS(){try{var r=localStorage.getItem(SK);return r?JSON.parse(r):null;}catch(e){return null;}}
-function saveLS(s){try{localStorage.setItem(SK,JSON.stringify(s));}catch(e){}}
+var PREF_SK="cht_prefs";
+function loadPrefs(){try{var r=localStorage.getItem(PREF_SK);return r?JSON.parse(r):null;}catch(e){return null;}}
+function savePrefs(p){try{localStorage.setItem(PREF_SK,JSON.stringify(p));}catch(e){}}
 
 var API=typeof import.meta!=='undefined'&&import.meta.env&&import.meta.env.VITE_API_URL?import.meta.env.VITE_API_URL:'http://localhost:3000';
 function getTok(){try{return localStorage.getItem('cht_tok');}catch(e){return null;}}
@@ -132,7 +134,7 @@ function fromBootstrap(data){
     calories:{min:parseInt(g.calMin)||1200,norm:parseInt(g.calNorm)||2000,max:parseInt(g.calMax)||2800},
     steps:{min:parseInt(g.stepsMin)||5000,norm:parseInt(g.stepsNorm)||8000,max:parseInt(g.stepsMax)||15000},
   };
-  var ls=loadLS()||{};
+  var prefs=loadPrefs()||{};
   return{
     habits:data.habits||[],counts:counts,checked:checked,
     water:water,sleep:sleep,calories:calories,stepsLog:stepsLog,
@@ -140,9 +142,9 @@ function fromBootstrap(data){
     tasks:(data.tasks||[]).map(function(tk){return Object.assign({},tk,{tag:tk.tagId});}),
     laterTasks:(data.laterTasks||[]).map(function(tk){return Object.assign({},tk,{tag:tk.tagId});}),
     tags:data.tags||[],
-    lang:ls.lang||'en',theme:ls.theme||'morning',
-    profileName:(data.user&&data.user.name)||ls.profileName||'',
-    calWizData:ls.calWizData||null,
+    lang:prefs.lang||'en',theme:prefs.theme||'morning',
+    profileName:(data.user&&data.user.name)||'',
+    calWizData:prefs.calWizData||null,
   };
 }
 function toMigratePayload(saved){
@@ -192,25 +194,18 @@ var DEF_H = [
 ];
 
 function initSt(){
-  var s=loadLS();
+  var prefs=loadPrefs()||{};
   return{
-    habits:(s&&s.habits)||DEF_H,
-    counts:(s&&s.counts)||{},
-    checked:(s&&s.checked)||{},
-    dayNotes:(s&&s.dayNotes)||{},
-    dayNotesTime:(s&&s.dayNotesTime)||{},
-    water:(s&&s.water)||{},
-    sleep:(s&&s.sleep)||{},
-    calories:(s&&s.calories)||{},
-    goals:Object.assign({water:{min:1,norm:3,max:4},sleep:{min:6,norm:8,max:10},calories:{min:1200,norm:2000,max:2800},steps:{min:5000,norm:8000,max:15000}},(s&&s.goals)||{}),
-    stepsLog:(s&&s.stepsLog)||{},
-    lang:(s&&s.lang)||"en",
-    theme:(s&&s.theme)||"morning",
-    profileName:(s&&s.profileName)||"",
-    calWizData:(s&&s.calWizData)||null,
-    tasks:(s&&s.tasks)||[],
-    laterTasks:(s&&s.laterTasks)||[],
-    tags:(s&&s.tags)||[],
+    habits:[],counts:{},checked:{},
+    dayNotes:{},dayNotesTime:{},
+    water:{},sleep:{},calories:{},
+    goals:{water:{min:1,norm:3,max:4},sleep:{min:6,norm:8,max:10},calories:{min:1200,norm:2000,max:2800},steps:{min:5000,norm:8000,max:15000}},
+    stepsLog:{},
+    lang:prefs.lang||"en",
+    theme:prefs.theme||"morning",
+    profileName:"",
+    calWizData:prefs.calWizData||null,
+    tasks:[],laterTasks:[],tags:[],
   };
 }
 function initUi(){return{tab:"today",aTab:"general",yr:new Date().getFullYear(),mo:new Date().getMonth(),pDay:null,editH:null,detH:null,detFrom:null,form:Object.assign({},BLANK),thumb:{},confetti:false,hPopup:null,calPop:false,calIn:"",calMode:"+",sPanel:null,gDraft:null,wiz:null,taskInput:"",taskDragIdx:null,taskDragOver:null,taskDragList:null,taskPopup:null,taskEdit:null,activeTag:null,tagInput:"",showTagInput:false,taskDeleteConfirm:null,journalFilter:"week",journalFrom:"",journalTo:"",journalEditDay:null,journalEditIdx:null,journalEditText:"",gMode:"recommended",reflectionDraft:"",reflectionKey:0,showDone:false};}
@@ -230,7 +225,7 @@ export default function App(){
   var reflDraftRef=useRef(null);
   var journalTextRef=useRef(null);
   useLayoutEffect(function(){var c=cursorSave.current;if(c&&c.el){try{c.el.setSelectionRange(c.start,c.end);}catch(ex){}cursorSave.current=null;}});
-  useEffect(function(){saveLS(st);},[st]);
+  useEffect(function(){savePrefs({lang:st.lang,theme:st.theme,calWizData:st.calWizData});},[st.lang,st.theme,st.calWizData]);
   function showToast(msg,type){var id=Date.now();setToasts(function(t){return t.concat([{id:id,msg:String(msg||'Something went wrong'),type:type||'error'}]);});setTimeout(function(){setToasts(function(t){return t.filter(function(x){return x.id!==id;});});},3500);}
   function isTemp(id){return String(id).startsWith('tmp_');}
   useEffect(function(){
