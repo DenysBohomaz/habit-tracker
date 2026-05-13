@@ -102,13 +102,24 @@ function savePrefs(p){try{localStorage.setItem(PREF_SK,JSON.stringify(p));}catch
 var API=typeof import.meta!=='undefined'&&import.meta.env&&import.meta.env.VITE_API_URL?import.meta.env.VITE_API_URL:'http://localhost:3000';
 function getTok(){try{return localStorage.getItem('cht_tok');}catch(e){return null;}}
 function setTok(t){try{if(t)localStorage.setItem('cht_tok',t);else localStorage.removeItem('cht_tok');}catch(e){}}
-async function apiFetch(path,opts){
+// Keepalive: warm up the server on page load (Render free tier spins down after 15min)
+if(API&&!API.includes('localhost')){fetch(API+'/health',{method:'GET'}).catch(function(){});}
+async function apiFetch(path,opts,_retry){
   var tok=getTok();
   var hdrs=Object.assign({'Content-Type':'application/json'},tok?{Authorization:'Bearer '+tok}:{});
-  var res=await fetch(API+path,Object.assign({},opts,{headers:hdrs}));
-  var json=await res.json();
-  if(!res.ok)throw Object.assign(new Error(json.error||'Request failed'),{status:res.status});
-  return json;
+  try{
+    var res=await fetch(API+path,Object.assign({},opts,{headers:hdrs}));
+    var json=await res.json();
+    if(!res.ok)throw Object.assign(new Error(json.error||'Request failed'),{status:res.status});
+    return json;
+  }catch(err){
+    // Retry once on network error (catches Render cold-start "Failed to fetch")
+    if(!err.status&&!_retry){
+      await new Promise(function(r){setTimeout(r,3000);});
+      return apiFetch(path,opts,true);
+    }
+    throw err;
+  }
 }
 function fromBootstrap(data){
   var counts={},checked={};
