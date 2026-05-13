@@ -45,6 +45,7 @@ var I18N = {
     profGender:"Gender",profAge:"Age",profWeight:"Weight",profHeight:"Height",profGoal:"Goal",
     profMale:"Male",profFemale:"Female",profNoData:"Not set",
     signIn:"Sign In",signUp:"Sign Up",password:"Password",yourName:"Your name",account:"Account",signOut:"Sign out",
+    forgotPassword:"Forgot password?",sendResetLink:"Send reset link",checkEmail:"Check your email",checkEmailHint:"We sent a reset link. Check your inbox (and spam folder).",newPassword:"New password",setNewPassword:"Set new password",backToLogin:"Back to login",
     importData:"Import local data",importDataSub:"Move your saved habits, tasks & journal to cloud",importDone:"Data imported successfully!",syncing:"Loading your data...",
   },
   uk: {
@@ -88,6 +89,7 @@ var I18N = {
     profGender:"Стать",profAge:"Вік",profWeight:"Вага",profHeight:"Зріст",profGoal:"Ціль",
     profMale:"Чоловік",profFemale:"Жінка",profNoData:"Не вказано",
     signIn:"Увійти",signUp:"Зареєструватись",password:"Пароль",yourName:"Ваше ім'я",account:"Акаунт",signOut:"Вийти",
+    forgotPassword:"Забули пароль?",sendResetLink:"Надіслати посилання",checkEmail:"Перевірте пошту",checkEmailHint:"Ми надіслали посилання для скидання. Перевірте вхідні (і папку спам).",newPassword:"Новий пароль",setNewPassword:"Встановити пароль",backToLogin:"Назад до входу",
     importData:"Перенести локальні дані",importDataSub:"Перенести збережені звички, задачі та журнал у хмару",importDone:"Дані успішно перенесено!",syncing:"Завантаження даних...",
   }
 };
@@ -214,7 +216,7 @@ function initUi(){return{tab:"today",aTab:"general",yr:new Date().getFullYear(),
 export default function App(){
   var st0=useState(initSt),st=st0[0],setSt=st0[1];
   var ui0=useState(initUi),ui=ui0[0],setUi=ui0[1];
-  var auth0=useState(function(){return{token:getTok(),user:null,loading:false,error:null,mode:'login',email:'',password:'',name:''};});
+  var auth0=useState(function(){var rp=new URLSearchParams(window.location.search).get('reset')||'';return{token:getTok(),user:null,loading:false,error:null,mode:rp?'reset':'login',email:'',password:'',name:'',resetToken:rp,forgotEmail:''};});
   var auth=auth0[0],setAuth=auth0[1];
   function mauth(p){setAuth(function(a){return Object.assign({},a,p);});}
   var mig0=useState({loading:false,done:false,error:null}),mig=mig0[0],setMig=mig0[1];
@@ -516,7 +518,9 @@ export default function App(){
     try{var data=await apiFetch('/auth/register',{method:'POST',body:JSON.stringify({email:auth.email,password:auth.password,name:auth.name||undefined})});setTok(data.token);mauth({token:data.token,user:data.user,loading:false,email:'',password:'',name:'',error:null});}
     catch(err){mauth({loading:false,error:err.message||'Registration failed'});}
   }
-  function doLogout(){setTok(null);mauth({token:null,user:null,mode:'login',email:'',password:'',name:'',error:null});setSt(initSt);setMig({loading:false,done:false,error:null});qc.removeQueries({queryKey:['bootstrap']});}
+  async function doForgot(){mauth({loading:true,error:null});try{await apiFetch('/auth/forgot-password',{method:'POST',body:JSON.stringify({email:auth.forgotEmail})});mauth({loading:false,mode:'forgot-sent'});}catch(err){mauth({loading:false,error:err.message||'Something went wrong'});}}
+  async function doReset(){mauth({loading:true,error:null});try{var data=await apiFetch('/auth/reset-password',{method:'POST',body:JSON.stringify({token:auth.resetToken,password:auth.password})});setTok(data.token);window.history.replaceState({},'',window.location.pathname);mauth({token:data.token,user:data.user,loading:false,password:'',error:null,resetToken:''});}catch(err){mauth({loading:false,error:err.message||'Reset failed'});}}
+  function doLogout(){setTok(null);mauth({token:null,user:null,mode:'login',email:'',password:'',name:'',error:null,resetToken:'',forgotEmail:''});setSt(initSt);setMig({loading:false,done:false,error:null});qc.removeQueries({queryKey:['bootstrap']});}
   async function doMigrate(){
     var saved=loadLS();if(!saved)return;
     setMig({loading:true,done:false,error:null});
@@ -569,6 +573,11 @@ export default function App(){
   // ── Auth guard ────────────────────────────────────────────────────────────────
   if(!auth.token){
     var isReg=auth.mode==='register';
+    var isForgot=auth.mode==='forgot';
+    var isForgotSent=auth.mode==='forgot-sent';
+    var isReset=auth.mode==='reset';
+    // Subtitle text
+    var subtitle=isReg?"Create your account":isForgot||isForgotSent?t.forgotPassword:isReset?t.resetPassword||"Reset password":"Welcome back";
     return(
       <div style={{minHeight:"100vh",background:bg,fontFamily:"-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif",display:"flex",alignItems:"center",justifyContent:"center",padding:16}}>
         <style>{CSS}</style>
@@ -576,27 +585,71 @@ export default function App(){
           <div style={{textAlign:"center",marginBottom:28}}>
             <p style={{fontSize:44,margin:"0 0 6px"}}>📋</p>
             <p style={{fontSize:26,fontWeight:800,color:textMain,margin:"0 0 4px"}}>Habit Tracker</p>
-            <p style={{fontSize:14,color:textSub,margin:0}}>{isReg?"Create your account":"Welcome back"}</p>
+            <p style={{fontSize:14,color:textSub,margin:0}}>{subtitle}</p>
           </div>
           <div style={{background:card,borderRadius:20,padding:"24px 20px",boxShadow:"0 4px 32px rgba(0,0,0,0.10)"}}>
-            <div style={{display:"flex",borderRadius:12,border:"1px solid "+border,overflow:"hidden",marginBottom:20}}>
-              {['login','register'].map(function(mode){
-                var active=auth.mode===mode;
-                return <button key={mode} onClick={function(){mauth({mode:mode,error:null});}} style={{flex:1,padding:"10px 0",background:active?textMain:card,color:active?card:textSub,border:"none",fontSize:14,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>{mode==='login'?t.signIn:t.signUp}</button>;
-              })}
-            </div>
-            {isReg&&<input type="text" placeholder={t.yourName} value={auth.name} onChange={function(e){mauth({name:e.target.value});}} style={inputSt}/>}
-            <input type="email" placeholder="Email" value={auth.email} onChange={function(e){mauth({email:e.target.value});}} style={inputSt}/>
-            <input type="password" placeholder={t.password} value={auth.password} onChange={function(e){mauth({password:e.target.value});}} onKeyDown={function(e){if(e.key==='Enter'){isReg?doRegister():doLogin();}}} style={Object.assign({},inputSt,{marginBottom:16})}/>
-            {auth.error&&<p style={{fontSize:13,color:red,margin:"0 0 12px",textAlign:"center"}}>{auth.error}</p>}
-            <button onClick={function(){isReg?doRegister():doLogin();}} disabled={auth.loading} style={{width:"100%",padding:"13px",borderRadius:12,background:textMain,color:card,border:"none",fontSize:15,fontWeight:700,cursor:"pointer",fontFamily:"inherit",opacity:auth.loading?0.6:1}}>
-              {auth.loading?"...":(isReg?t.signUp:t.signIn)}
-            </button>
+            {/* ── Login / Register tabs (hidden for forgot/reset) ── */}
+            {!isForgot&&!isForgotSent&&!isReset&&(
+              <div style={{display:"flex",borderRadius:12,border:"1px solid "+border,overflow:"hidden",marginBottom:20}}>
+                {['login','register'].map(function(mode){
+                  var active=auth.mode===mode;
+                  return <button key={mode} onClick={function(){mauth({mode:mode,error:null});}} style={{flex:1,padding:"10px 0",background:active?textMain:card,color:active?card:textSub,border:"none",fontSize:14,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>{mode==='login'?t.signIn:t.signUp}</button>;
+                })}
+              </div>
+            )}
+            {/* ── Forgot password — email input ── */}
+            {isForgot&&(
+              <>
+                <input type="email" placeholder="Email" value={auth.forgotEmail} onChange={function(e){mauth({forgotEmail:e.target.value,error:null});}} onKeyDown={function(e){if(e.key==='Enter')doForgot();}} autoFocus style={Object.assign({},inputSt,{marginBottom:16})}/>
+                {auth.error&&<p style={{fontSize:13,color:red,margin:"0 0 12px",textAlign:"center"}}>{auth.error}</p>}
+                <button onClick={doForgot} disabled={auth.loading} style={{width:"100%",padding:"13px",borderRadius:12,background:textMain,color:card,border:"none",fontSize:15,fontWeight:700,cursor:"pointer",fontFamily:"inherit",opacity:auth.loading?0.6:1}}>
+                  {auth.loading?"...":t.sendResetLink}
+                </button>
+                <button onClick={function(){mauth({mode:'login',error:null});}} style={{width:"100%",padding:"10px",marginTop:10,background:"transparent",border:"none",color:textSub,fontSize:13,cursor:"pointer",fontFamily:"inherit"}}>{t.backToLogin}</button>
+              </>
+            )}
+            {/* ── Forgot sent — success message ── */}
+            {isForgotSent&&(
+              <>
+                <p style={{fontSize:32,textAlign:"center",margin:"8px 0 12px"}}>📬</p>
+                <p style={{fontSize:15,fontWeight:600,color:textMain,textAlign:"center",margin:"0 0 8px"}}>{t.checkEmail}</p>
+                <p style={{fontSize:13,color:textSub,textAlign:"center",margin:"0 0 20px",lineHeight:1.5}}>{t.checkEmailHint}</p>
+                <button onClick={function(){mauth({mode:'login',error:null,forgotEmail:'',resetToken:'',password:''});}} style={{width:"100%",padding:"12px",borderRadius:12,background:"transparent",border:"1px solid "+border,color:textMain,fontSize:14,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>{t.backToLogin}</button>
+              </>
+            )}
+            {/* ── Reset password — new password input ── */}
+            {isReset&&(
+              <>
+                <input type="password" placeholder={t.newPassword} value={auth.password} onChange={function(e){mauth({password:e.target.value,error:null});}} onKeyDown={function(e){if(e.key==='Enter')doReset();}} autoFocus style={Object.assign({},inputSt,{marginBottom:16})}/>
+                {auth.error&&<p style={{fontSize:13,color:red,margin:"0 0 12px",textAlign:"center"}}>{auth.error}</p>}
+                <button onClick={doReset} disabled={auth.loading} style={{width:"100%",padding:"13px",borderRadius:12,background:textMain,color:card,border:"none",fontSize:15,fontWeight:700,cursor:"pointer",fontFamily:"inherit",opacity:auth.loading?0.6:1}}>
+                  {auth.loading?"...":t.setNewPassword}
+                </button>
+                <button onClick={function(){mauth({mode:'login',error:null,password:'',resetToken:''});window.history.replaceState({},'',window.location.pathname);}} style={{width:"100%",padding:"10px",marginTop:10,background:"transparent",border:"none",color:textSub,fontSize:13,cursor:"pointer",fontFamily:"inherit"}}>{t.backToLogin}</button>
+              </>
+            )}
+            {/* ── Login / Register form ── */}
+            {!isForgot&&!isForgotSent&&!isReset&&(
+              <>
+                {isReg&&<input type="text" placeholder={t.yourName} value={auth.name} onChange={function(e){mauth({name:e.target.value});}} style={inputSt}/>}
+                <input type="email" placeholder="Email" value={auth.email} onChange={function(e){mauth({email:e.target.value});}} style={inputSt}/>
+                <input type="password" placeholder={t.password} value={auth.password} onChange={function(e){mauth({password:e.target.value});}} onKeyDown={function(e){if(e.key==='Enter'){isReg?doRegister():doLogin();}}} style={Object.assign({},inputSt,{marginBottom:!isReg?6:16})}/>
+                {!isReg&&(
+                  <div style={{textAlign:"right",marginBottom:14}}>
+                    <button onClick={function(){mauth({mode:'forgot',error:null,forgotEmail:auth.email});}} style={{background:"transparent",border:"none",color:textSub,fontSize:12,cursor:"pointer",fontFamily:"inherit",padding:0}}>{t.forgotPassword}</button>
+                  </div>
+                )}
+                {auth.error&&<p style={{fontSize:13,color:red,margin:"0 0 12px",textAlign:"center"}}>{auth.error}</p>}
+                <button onClick={function(){isReg?doRegister():doLogin();}} disabled={auth.loading} style={{width:"100%",padding:"13px",borderRadius:12,background:textMain,color:card,border:"none",fontSize:15,fontWeight:700,cursor:"pointer",fontFamily:"inherit",opacity:auth.loading?0.6:1}}>
+                  {auth.loading?"...":(isReg?t.signUp:t.signIn)}
+                </button>
+              </>
+            )}
           </div>
           <div style={{textAlign:"center",marginTop:16,display:"flex",justifyContent:"center",gap:8}}>
             {["en","uk"].map(function(l){return(
               <button key={l} onClick={function(){mst({lang:l});}} style={{background:"transparent",border:"none",cursor:"pointer",fontSize:13,fontWeight:st.lang===l?700:400,color:st.lang===l?textMain:textLight,fontFamily:"inherit"}}>{l==="en"?"English":"Українська"}</button>
-            );}) }
+            );})}
           </div>
         </div>
       </div>
