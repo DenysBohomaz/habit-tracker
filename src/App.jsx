@@ -422,12 +422,16 @@ export default function App(){
     if(!isTemp(id)){api('/tasks/'+id,{method:'PATCH',body:JSON.stringify({pinned:newPinned})},{err:function(e){showToast(e.message);}});}
   }
   function moveToLater(tid){
+    var prev=st.tasks.find(function(tk){return tk.id===tid;});
+    if(!prev)return;
     setSt(function(s){var task=s.tasks.find(function(tk){return tk.id===tid;});if(!task)return s;return Object.assign({},s,{tasks:s.tasks.filter(function(tk){return tk.id!==tid;}),laterTasks:s.laterTasks.concat([Object.assign({},task,{pinned:false})])});});
-    if(!isTemp(tid)){api('/tasks/'+tid,{method:'PATCH',body:JSON.stringify({list:'later',pinned:false})},{err:function(e){showToast(e.message);}});}
+    if(!isTemp(tid)){api('/tasks/'+tid,{method:'PATCH',body:JSON.stringify({list:'later',pinned:false})},{err:function(e){setSt(function(s){return Object.assign({},s,{tasks:s.tasks.concat([prev]),laterTasks:s.laterTasks.filter(function(tk){return tk.id!==tid;})});});showToast(e.message);}});}
   }
   function moveToPlan(tid){
+    var prev=st.laterTasks.find(function(tk){return tk.id===tid;});
+    if(!prev)return;
     setSt(function(s){var task=s.laterTasks.find(function(tk){return tk.id===tid;});if(!task)return s;return Object.assign({},s,{laterTasks:s.laterTasks.filter(function(tk){return tk.id!==tid;}),tasks:s.tasks.concat([task])});});
-    if(!isTemp(tid)){api('/tasks/'+tid,{method:'PATCH',body:JSON.stringify({list:'plan'})},{err:function(e){showToast(e.message);}});}
+    if(!isTemp(tid)){api('/tasks/'+tid,{method:'PATCH',body:JSON.stringify({list:'plan'})},{err:function(e){setSt(function(s){return Object.assign({},s,{laterTasks:s.laterTasks.concat([prev]),tasks:s.tasks.filter(function(tk){return tk.id!==tid;})});});showToast(e.message);}});}
   }
   function reorderTask(fromIdx,toIdx,list){if(fromIdx===toIdx)return;setSt(function(s){var key=list==="later"?"laterTasks":"tasks";var arr=s[key].slice();var item=arr.splice(fromIdx,1)[0];arr.splice(toIdx,0,item);var r=Object.assign({},s);r[key]=arr;return r;});mu({taskDragIdx:null,taskDragOver:null,taskDragList:null});}
   function setTaskPri(id,imp,urg,list){
@@ -991,16 +995,20 @@ export default function App(){
                 </div>
               <div
                 draggable={true}
-                onDragStart={function(e){e.dataTransfer.setData("tid",String(tk.id));e.dataTransfer.setData("tlist",list);e.dataTransfer.setData("tidx",String(idx));e.currentTarget.style.opacity="0.4";}}
+                onDragStart={function(e){
+                  // Don't start drag if originating from an action button / checkbox
+                  var el=e.target;while(el&&el!==e.currentTarget){if(el.tagName==='BUTTON'||el.dataset.nodrag){e.preventDefault();return;}el=el.parentElement;}
+                  e.dataTransfer.setData("tid",String(tk.id));e.dataTransfer.setData("tlist",list);e.dataTransfer.setData("tidx",String(idx));e.currentTarget.style.opacity="0.4";
+                }}
                 onDragEnd={function(e){e.currentTarget.style.opacity="";e.currentTarget.style.transform="";}}
                 onDragOver={function(e){e.preventDefault();e.stopPropagation();e.currentTarget.style.background=darkBg;}}
                 onDragLeave={function(e){e.currentTarget.style.background="";}}
                 onDrop={function(e){
                   e.preventDefault();e.stopPropagation();
                   e.currentTarget.style.background="";
-                  var fromId=parseInt(e.dataTransfer.getData("tid"));
+                  var fromId=e.dataTransfer.getData("tid");          // UUID — no parseInt
                   var fromList=e.dataTransfer.getData("tlist");
-                  var fromIdx=parseInt(e.dataTransfer.getData("tidx"));
+                  var fromIdx=parseInt(e.dataTransfer.getData("tidx")); // index — parseInt OK
                   if(fromList!==list){
                     if(fromList==="plan")moveToLater(fromId);else moveToPlan(fromId);
                   } else {reorderTask(fromIdx,idx,list);}
@@ -1025,7 +1033,7 @@ export default function App(){
                 }}
                 style={{display:"flex",alignItems:"center",gap:8,padding:"10px 12px",background:card,borderRadius:10,border:"1px solid "+border,cursor:"grab",transition:"background 0.1s",position:"relative",zIndex:1}}
               >
-                <div onClick={function(){toggleTaskDone(tk.id,list);}} style={{width:20,height:20,borderRadius:6,border:"2px solid "+(tk.done?green:border),background:tk.done?greenBg:"transparent",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",flexShrink:0}}>
+                <div data-nodrag="1" onClick={function(){toggleTaskDone(tk.id,list);}} style={{width:20,height:20,borderRadius:6,border:"2px solid "+(tk.done?green:border),background:tk.done?greenBg:"transparent",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",flexShrink:0}}>
                   {tk.done&&<svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M1.5 5L3.5 7.5L8.5 2" stroke={green} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>}
                 </div>
                 <span onClick={function(){mu({taskPopup:{id:tk.id,list:list,draftText:tk.text,draftDesc:tk.description||"",draftDeadline:tk.deadline||"",draftReminder:tk.reminder||""}});}} style={{flex:1,fontSize:14,color:tk.done?textLight:textMain,textDecoration:tk.done?"line-through":"none",cursor:"pointer",lineHeight:1.4}}>{tk.text}</span>
@@ -1084,7 +1092,7 @@ export default function App(){
               </div>
               <div
                 onDragOver={function(e){e.preventDefault();}}
-                onDrop={function(e){e.preventDefault();var fromList=e.dataTransfer.getData("tlist");if(fromList==="later"){var fromId=parseInt(e.dataTransfer.getData("tid"));moveToPlan(fromId);}}}
+                onDrop={function(e){e.preventDefault();var fromList=e.dataTransfer.getData("tlist");if(fromList==="later"){var fromId=e.dataTransfer.getData("tid");moveToPlan(fromId);}}}
               >
                 {planTasks.length===0&&<p style={{fontSize:13,color:textLight,textAlign:"center",padding:"16px 0"}}>{t.noTasks}</p>}
                 {planTasks.map(function(tk,i){return <TaskRow key={tk.id} tk={tk} list="plan" idx={st.tasks.indexOf(tk)}/>;} )}
@@ -1097,7 +1105,7 @@ export default function App(){
               </div>
               <div
                 onDragOver={function(e){e.preventDefault();}}
-                onDrop={function(e){e.preventDefault();var fromList=e.dataTransfer.getData("tlist");if(fromList==="plan"){var fromId=parseInt(e.dataTransfer.getData("tid"));moveToLater(fromId);}}}
+                onDrop={function(e){e.preventDefault();var fromList=e.dataTransfer.getData("tlist");if(fromList==="plan"){var fromId=e.dataTransfer.getData("tid");moveToLater(fromId);}}}
               >
                 {activeLater.length===0&&<p style={{fontSize:13,color:textLight,textAlign:"center",padding:"12px 0"}}>–</p>}
                 {activeLater.map(function(tk,i){return <TaskRow key={tk.id} tk={tk} list="later" idx={st.laterTasks.indexOf(tk)}/>;} )}
@@ -1139,7 +1147,7 @@ export default function App(){
                       style={Object.assign({},fieldStyle,{resize:"none",lineHeight:1.5,overflow:"hidden"})}
                     />
                     <p style={{fontSize:12,fontWeight:600,color:textMain,margin:"0 0 6px"}}>{t.tag}</p>
-                    <select value={popTask.tag||""} onChange={function(e){setTaskTag(popTask.id,e.target.value?parseInt(e.target.value):null,popList);}} style={Object.assign({},fieldStyle,{appearance:"none"})}>
+                    <select value={popTask.tag||""} onChange={function(e){setTaskTag(popTask.id,e.target.value||null,popList);}} style={Object.assign({},fieldStyle,{appearance:"none"})}>
                       <option value="">— {t.allTasks} —</option>
                       {st.tags.map(function(tg){return <option key={tg.id} value={tg.id}>{tg.name}</option>;})}
                     </select>
