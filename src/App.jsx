@@ -45,7 +45,7 @@ var I18N = {
     profGender:"Gender",profAge:"Age",profWeight:"Weight",profHeight:"Height",profGoal:"Goal",
     profMale:"Male",profFemale:"Female",profNoData:"Not set",
     signIn:"Sign In",signUp:"Sign Up",password:"Password",yourName:"Your name",account:"Account",signOut:"Sign out",
-    forgotPassword:"Forgot password?",sendResetLink:"Send reset link",checkEmail:"Check your email",checkEmailHint:"We sent a reset link. Check your inbox (and spam folder).",newPassword:"New password",setNewPassword:"Set new password",backToLogin:"Back to login",
+    forgotPassword:"Forgot password?",sendResetLink:"Send reset link",checkEmail:"Check your email",checkEmailHint:"We sent a reset link. Check your inbox (and spam folder).",newPassword:"New password",setNewPassword:"Set new password",backToLogin:"Back to login",passwordHint:"At least 4 characters",
     importData:"Import local data",importDataSub:"Move your saved habits, tasks & journal to cloud",importDone:"Data imported successfully!",syncing:"Loading your data...",
   },
   uk: {
@@ -89,7 +89,7 @@ var I18N = {
     profGender:"Стать",profAge:"Вік",profWeight:"Вага",profHeight:"Зріст",profGoal:"Ціль",
     profMale:"Чоловік",profFemale:"Жінка",profNoData:"Не вказано",
     signIn:"Увійти",signUp:"Зареєструватись",password:"Пароль",yourName:"Ваше ім'я",account:"Акаунт",signOut:"Вийти",
-    forgotPassword:"Забули пароль?",sendResetLink:"Надіслати посилання",checkEmail:"Перевірте пошту",checkEmailHint:"Ми надіслали посилання для скидання. Перевірте вхідні (і папку спам).",newPassword:"Новий пароль",setNewPassword:"Встановити пароль",backToLogin:"Назад до входу",
+    forgotPassword:"Забули пароль?",sendResetLink:"Надіслати посилання",checkEmail:"Перевірте пошту",checkEmailHint:"Ми надіслали посилання для скидання. Перевірте вхідні (і папку спам).",newPassword:"Новий пароль",setNewPassword:"Встановити пароль",backToLogin:"Назад до входу",passwordHint:"Мінімум 4 символи",
     importData:"Перенести локальні дані",importDataSub:"Перенести збережені звички, задачі та журнал у хмару",importDone:"Дані успішно перенесено!",syncing:"Завантаження даних...",
   }
 };
@@ -211,7 +211,63 @@ function initSt(){
     tasks:[],laterTasks:[],tags:[],
   };
 }
-function initUi(){return{tab:"today",aTab:"general",yr:new Date().getFullYear(),mo:new Date().getMonth(),pDay:null,editH:null,detH:null,detFrom:null,form:Object.assign({},BLANK),thumb:{},confetti:false,hPopup:null,calPop:false,calIn:"",calMode:"+",sPanel:null,gDraft:null,wiz:null,taskInput:"",taskDragIdx:null,taskDragOver:null,taskDragList:null,taskPopup:null,taskEdit:null,activeTag:null,tagInput:"",showTagInput:false,taskDeleteConfirm:null,journalFilter:"week",journalFrom:"",journalTo:"",journalEditDay:null,journalEditIdx:null,journalEditText:"",gMode:"recommended",reflectionDraft:"",reflectionKey:0,showDone:false};}
+function initUi(){return{tab:"today",aTab:"general",yr:new Date().getFullYear(),mo:new Date().getMonth(),pDay:null,editH:null,detH:null,detFrom:null,form:Object.assign({},BLANK),thumb:{},confetti:false,hPopup:null,calPop:false,calIn:"",calMode:"+",sPanel:null,gDraft:null,wiz:null,taskInput:"",taskDragIdx:null,taskDragOver:null,taskDragList:null,taskPopup:null,activeTag:null,tagInput:"",showTagInput:false,taskDeleteConfirm:null,journalFilter:"week",journalFrom:"",journalTo:"",journalEditDay:null,journalEditIdx:null,journalEditText:"",gMode:"recommended",reflectionDraft:"",reflectionKey:0,showDone:false};}
+
+// ── Stable module-level components (avoids remount-on-every-render) ──────────
+function scoreTask(tk){return Math.round((tk.importance*0.7+tk.urgency*0.3)*10)/10;}
+function ScoreBadge({tk,cx}){var s=scoreTask(tk);var col=s>=4?cx.red:s>=2.5?cx.yellow:cx.textSub;return <span style={{fontSize:10,fontWeight:700,color:col,background:col===cx.red?cx.redBg:col===cx.yellow?cx.yellowBg:cx.darkBg,padding:"2px 6px",borderRadius:10,border:"1px solid "+(col===cx.red?cx.redBo:col===cx.yellow?cx.yellowBo:cx.border),flexShrink:0}}>{s}</span>;}
+function TaskRow({tk,list,idx,cx}){
+  list=list||"plan";
+  var mu=cx.mu,toggleTaskDone=cx.toggleTaskDone,moveToLater=cx.moveToLater,moveToPlan=cx.moveToPlan,reorderTask=cx.reorderTask,togglePin=cx.togglePin;
+  var darkBg=cx.darkBg,card=cx.card,border=cx.border,green=cx.green,greenBg=cx.greenBg,textMain=cx.textMain,textLight=cx.textLight,textSub=cx.textSub,red=cx.red,t=cx.t;
+  return(
+    <div
+      style={{position:"relative",marginBottom:6,borderRadius:10,overflow:"hidden"}}
+      onMouseDown={function(e){
+        if(e.button!==0)return;
+        var inner=e.currentTarget.children[1];
+        var startX=e.clientX,startY=e.clientY,swiping=false,dragging=false;
+        function onMove(ev){if(dragging)return;var dx=ev.clientX-startX,dy=ev.clientY-startY;if(!swiping&&Math.abs(dy)>12){cleanup();return;}if(!swiping&&dx<-8)swiping=true;if(swiping){ev.preventDefault();inner.style.transform="translateX("+Math.max(dx,-80)+"px)";}}
+        function onUp(){cleanup();if(!swiping)return;var dx=parseFloat((inner.style.transform||"").replace(/[^-\d.]/g,""))||0;inner.style.transition="transform 0.2s";if(dx<-50){inner.style.transform="translateX(-80px)";setTimeout(function(){mu({taskDeleteConfirm:{id:tk.id,list:list,text:tk.text}});inner.style.transform="";inner.style.transition="";},150);}else{inner.style.transform="";setTimeout(function(){inner.style.transition="";},200);}}
+        function onDragStart(){dragging=true;cleanup();inner.style.transform="";inner.style.transition="";}
+        function cleanup(){window.removeEventListener("mousemove",onMove);window.removeEventListener("mouseup",onUp);inner.removeEventListener("dragstart",onDragStart);}
+        window.addEventListener("mousemove",onMove);window.addEventListener("mouseup",onUp);inner.addEventListener("dragstart",onDragStart);
+      }}
+    >
+      <div onClick={function(){mu({taskDeleteConfirm:{id:tk.id,list:list,text:tk.text}});}} style={{position:"absolute",right:0,top:0,bottom:0,width:72,background:"#ef4444",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",borderRadius:"0 10px 10px 0"}}>
+        <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M3 5h14M8 5V3h4v2M6 5l1 12h6l1-12" stroke="white" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/></svg>
+      </div>
+      <div
+        draggable={true}
+        onDragStart={function(e){var el=e.target;while(el&&el!==e.currentTarget){if(el.tagName==='BUTTON'||el.dataset.nodrag){e.preventDefault();return;}el=el.parentElement;}e.dataTransfer.setData("tid",String(tk.id));e.dataTransfer.setData("tlist",list);e.dataTransfer.setData("tidx",String(idx));e.currentTarget.style.opacity="0.4";}}
+        onDragEnd={function(e){e.currentTarget.style.opacity="";e.currentTarget.style.transform="";}}
+        onDragOver={function(e){e.preventDefault();e.stopPropagation();e.currentTarget.style.background=darkBg;}}
+        onDragLeave={function(e){e.currentTarget.style.background="";}}
+        onDrop={function(e){e.preventDefault();e.stopPropagation();e.currentTarget.style.background="";var fromId=e.dataTransfer.getData("tid");var fromList=e.dataTransfer.getData("tlist");var fromIdx=parseInt(e.dataTransfer.getData("tidx"));if(fromList!==list){if(fromList==="plan")moveToLater(fromId);else moveToPlan(fromId);}else{reorderTask(fromIdx,idx,list);}}}
+        onTouchStart={function(e){e.currentTarget.dataset.sx=e.touches[0].clientX;e.currentTarget.style.transition="none";}}
+        onTouchMove={function(e){var dx=e.touches[0].clientX-parseFloat(e.currentTarget.dataset.sx||0);if(dx<0){e.currentTarget.style.transform="translateX("+Math.max(dx,-80)+"px)";}}}
+        onTouchEnd={function(e){var el=e.currentTarget;var tr=el.style.transform;var dx=tr?parseFloat(tr.replace(/[^-\d.]/g,""))||0:0;el.style.transition="transform 0.2s";if(dx<-50){el.style.transform="translateX(-80px)";setTimeout(function(){mu({taskDeleteConfirm:{id:tk.id,list:list,text:tk.text}});el.style.transform="";el.style.transition="";},150);}else{el.style.transform="";setTimeout(function(){el.style.transition="";},200);}}}
+        style={{display:"flex",alignItems:"center",gap:8,padding:"10px 12px",background:card,borderRadius:10,border:"1px solid "+border,cursor:"grab",transition:"background 0.1s",position:"relative",zIndex:1}}
+      >
+        <div data-nodrag="1" onClick={function(){toggleTaskDone(tk.id,list);}} style={{width:20,height:20,borderRadius:6,border:"2px solid "+(tk.done?green:border),background:tk.done?greenBg:"transparent",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",flexShrink:0}}>
+          {tk.done&&<svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M1.5 5L3.5 7.5L8.5 2" stroke={green} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>}
+        </div>
+        <span onClick={function(){mu({taskPopup:{id:tk.id,list:list,draftText:tk.text,draftDesc:tk.description||"",draftDeadline:tk.deadline||"",draftReminder:tk.reminder||""}});}} style={{flex:1,fontSize:14,color:tk.done?textLight:textMain,textDecoration:tk.done?"line-through":"none",cursor:"pointer",lineHeight:1.4}}>{tk.text}</span>
+        {cx.activeTag===null&&tk.tag&&(function(){var tg=cx.tags.find(function(x){return x.id===tk.tag;});return tg?<span style={{fontSize:9,fontWeight:600,color:textSub,background:darkBg,border:"1px solid "+border,borderRadius:8,padding:"1px 6px",flexShrink:0,maxWidth:60,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{tg.name}</span>:null;})()}
+        <ScoreBadge tk={tk} cx={cx}/>
+        <button onClick={function(e){e.stopPropagation();mu({taskPopup:{id:tk.id,list:list,draftText:tk.text,draftDesc:tk.description||"",draftDeadline:tk.deadline||"",draftReminder:tk.reminder||""}});}} title={t.editTask} style={{background:"transparent",border:"none",cursor:"pointer",padding:"2px",flexShrink:0,lineHeight:1}}>
+          <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M9.5 1.5l2 2-7 7-2.5.5.5-2.5 7-7z" stroke={textLight} strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/></svg>
+        </button>
+        {list==="plan"&&<button onClick={function(){togglePin(tk.id);}} style={{background:"transparent",border:"none",cursor:"pointer",fontSize:14,padding:"2px",flexShrink:0,position:"relative",lineHeight:1,display:"inline-flex",alignItems:"center",justifyContent:"center",width:22,height:22}}>
+          <span style={{opacity:tk.pinned?0.55:1}}>📌</span>
+          {tk.pinned&&<span style={{position:"absolute",top:"50%",left:"-2px",right:"-2px",height:"3px",background:"#ef4444",transform:"translateY(-50%) rotate(-40deg)",display:"block",borderRadius:2,pointerEvents:"none",boxShadow:"0 0 0 1px rgba(255,255,255,0.8)"}}/>}
+        </button>}
+        {list==="plan"&&!tk.pinned&&<button onClick={function(){moveToLater(tk.id);}} style={{background:"transparent",border:"none",cursor:"pointer",fontSize:11,color:textLight,padding:"2px 4px",borderRadius:6,flexShrink:0}}>↓</button>}
+        {list==="later"&&<button onClick={function(){moveToPlan(tk.id);}} style={{background:"transparent",border:"none",cursor:"pointer",fontSize:11,color:textLight,padding:"2px 4px",borderRadius:6,flexShrink:0}}>↑</button>}
+      </div>
+    </div>
+  );
+}
 
 export default function App(){
   var st0=useState(initSt),st=st0[0],setSt=st0[1];
@@ -236,6 +292,7 @@ export default function App(){
     queryFn:function(){return apiFetch('/bootstrap');},
     enabled:!!auth.token,
     staleTime:2*60*1000,
+    refetchOnWindowFocus:false,
     retry:function(count,err){return err&&err.status!==401&&count<1;},
   });
   var bsLoad=bsQuery.isLoading&&!!auth.token;
@@ -468,8 +525,9 @@ export default function App(){
   function getDayEntries(date){var raw=st.dayNotes[date];if(!raw)return[];if(typeof raw==="string"){return raw.trim()?[{text:raw,time:(st.dayNotesTime&&st.dayNotesTime[date])||null}]:[];}return raw;}
   function addDayEntry(date,text){
     if(!text||!text.trim())return;
+    var prevEntries=st.dayNotes[date];
     setSt(function(s){var d=Object.assign({},s.dayNotes);var raw=d[date];var entries;if(!raw)entries=[];else if(typeof raw==="string")entries=raw.trim()?[{text:raw,time:(s.dayNotesTime&&s.dayNotesTime[date])||null}]:[];else entries=raw.slice();entries=entries.concat([{text:text.trim(),time:Date.now()}]);d[date]=entries;return Object.assign({},s,{dayNotes:d});});
-    api('/journal',{method:'POST',body:JSON.stringify({date:date,text:text.trim()})},{ok:function(created){setSt(function(s){var d=Object.assign({},s.dayNotes);var entries=(d[date]||[]).slice();for(var i=entries.length-1;i>=0;i--){if(!entries[i]._id){entries[i]=Object.assign({},entries[i],{_id:created.id});break;}}d[date]=entries;return Object.assign({},s,{dayNotes:d});});},err:function(e){showToast(e.message);}});
+    api('/journal',{method:'POST',body:JSON.stringify({date:date,text:text.trim()})},{ok:function(created){setSt(function(s){var d=Object.assign({},s.dayNotes);var entries=(d[date]||[]).slice();for(var i=entries.length-1;i>=0;i--){if(!entries[i]._id){entries[i]=Object.assign({},entries[i],{_id:created.id});break;}}d[date]=entries;return Object.assign({},s,{dayNotes:d});});},err:function(e){setSt(function(s){var d=Object.assign({},s.dayNotes);if(prevEntries==null)delete d[date];else d[date]=prevEntries;return Object.assign({},s,{dayNotes:d});});showToast(e.message);}});
   }
   function editDayEntry(date,idx,text){
     var entries=getDayEntries(date);
@@ -518,6 +576,7 @@ export default function App(){
     catch(err){mauth({loading:false,error:err.message||'Login failed'});}
   }
   async function doRegister(){
+    if(auth.password.length<4){mauth({error:'Password must be at least 4 characters'});return;}
     mauth({loading:true,error:null});
     try{var data=await apiFetch('/auth/register',{method:'POST',body:JSON.stringify({email:auth.email,password:auth.password,name:auth.name||undefined})});setTok(data.token);mauth({token:data.token,user:data.user,loading:false,email:'',password:'',name:'',error:null});}
     catch(err){mauth({loading:false,error:err.message||'Registration failed'});}
@@ -637,7 +696,8 @@ export default function App(){
               <>
                 {isReg&&<input type="text" placeholder={t.yourName} value={auth.name} onChange={function(e){mauth({name:e.target.value});}} style={inputSt}/>}
                 <input type="email" placeholder="Email" value={auth.email} onChange={function(e){mauth({email:e.target.value});}} style={inputSt}/>
-                <input type="password" placeholder={t.password} value={auth.password} onChange={function(e){mauth({password:e.target.value});}} onKeyDown={function(e){if(e.key==='Enter'){isReg?doRegister():doLogin();}}} style={Object.assign({},inputSt,{marginBottom:!isReg?6:16})}/>
+                <input type="password" placeholder={t.password} value={auth.password} onChange={function(e){mauth({password:e.target.value});}} onKeyDown={function(e){if(e.key==='Enter'){isReg?doRegister():doLogin();}}} style={Object.assign({},inputSt,{marginBottom:isReg?4:!isReg?6:16})}/>
+                {isReg&&<p style={{fontSize:11,color:textLight,margin:"0 0 12px",paddingLeft:2}}>{t.passwordHint}</p>}
                 {!isReg&&(
                   <div style={{textAlign:"right",marginBottom:14}}>
                     <button onClick={function(){mauth({mode:'forgot',error:null,forgotEmail:auth.email});}} style={{background:"transparent",border:"none",color:textSub,fontSize:12,cursor:"pointer",fontFamily:"inherit",padding:0}}>{t.forgotPassword}</button>
@@ -953,105 +1013,8 @@ export default function App(){
           var pinnedTasks=visibleTasks.filter(function(tk){return tk.pinned&&!tk.done;});
           var planTasks=visibleTasks.filter(function(tk){return !tk.pinned&&!tk.done;});
           var activeLater=visibleLater.filter(function(tk){return !tk.done;});
-          var doneTasks=visibleTasks.filter(function(tk){return tk.done;}).map(function(tk){return{tk:tk,list:"plan"};}).concat(visibleLater.filter(function(tk){return tk.done;}).map(function(tk){return{tk:tk,list:"later"};}))
-          function score(tk){return Math.round((tk.importance*0.7+tk.urgency*0.3)*10)/10;}
-          function ScoreBadge(p){var s=score(p.tk);var col=s>=4?red:s>=2.5?yellow:textSub;return <span style={{fontSize:10,fontWeight:700,color:col,background:col===red?redBg:col===yellow?yellowBg:darkBg,padding:"2px 6px",borderRadius:10,border:"1px solid "+(col===red?redBo:col===yellow?yellowBo:border),flexShrink:0}}>{s}</span>;}
-          function TaskRow(p){
-            var tk=p.tk,list=p.list||"plan",idx=p.idx;
-            return(
-              <div
-                style={{position:"relative",marginBottom:6,borderRadius:10,overflow:"hidden"}}
-                onMouseDown={function(e){
-                  if(e.button!==0)return;
-                  var inner=e.currentTarget.children[1];
-                  var startX=e.clientX,startY=e.clientY,swiping=false,dragging=false;
-                  function onMove(ev){
-                    if(dragging)return;
-                    var dx=ev.clientX-startX,dy=ev.clientY-startY;
-                    if(!swiping&&Math.abs(dy)>12){cleanup();return;}
-                    if(!swiping&&dx<-8)swiping=true;
-                    if(swiping){ev.preventDefault();inner.style.transform="translateX("+Math.max(dx,-80)+"px)";}
-                  }
-                  function onUp(){
-                    cleanup();
-                    if(!swiping)return;
-                    var dx=parseFloat((inner.style.transform||"").replace(/[^-\d.]/g,""))||0;
-                    inner.style.transition="transform 0.2s";
-                    if(dx<-50){inner.style.transform="translateX(-80px)";setTimeout(function(){mu({taskDeleteConfirm:{id:tk.id,list:list,text:tk.text}});inner.style.transform="";inner.style.transition="";},150);}
-                    else{inner.style.transform="";setTimeout(function(){inner.style.transition="";},200);}
-                  }
-                  function onDragStart(){dragging=true;cleanup();inner.style.transform="";inner.style.transition="";}
-                  function cleanup(){window.removeEventListener("mousemove",onMove);window.removeEventListener("mouseup",onUp);inner.removeEventListener("dragstart",onDragStart);}
-                  window.addEventListener("mousemove",onMove);
-                  window.addEventListener("mouseup",onUp);
-                  inner.addEventListener("dragstart",onDragStart);
-                }}
-              >
-                <div
-                  onClick={function(){mu({taskDeleteConfirm:{id:tk.id,list:list,text:tk.text}});}}
-                  style={{position:"absolute",right:0,top:0,bottom:0,width:72,background:"#ef4444",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",borderRadius:"0 10px 10px 0"}}
-                >
-                  <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M3 5h14M8 5V3h4v2M6 5l1 12h6l1-12" stroke="white" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/></svg>
-                </div>
-              <div
-                draggable={true}
-                onDragStart={function(e){
-                  // Don't start drag if originating from an action button / checkbox
-                  var el=e.target;while(el&&el!==e.currentTarget){if(el.tagName==='BUTTON'||el.dataset.nodrag){e.preventDefault();return;}el=el.parentElement;}
-                  e.dataTransfer.setData("tid",String(tk.id));e.dataTransfer.setData("tlist",list);e.dataTransfer.setData("tidx",String(idx));e.currentTarget.style.opacity="0.4";
-                }}
-                onDragEnd={function(e){e.currentTarget.style.opacity="";e.currentTarget.style.transform="";}}
-                onDragOver={function(e){e.preventDefault();e.stopPropagation();e.currentTarget.style.background=darkBg;}}
-                onDragLeave={function(e){e.currentTarget.style.background="";}}
-                onDrop={function(e){
-                  e.preventDefault();e.stopPropagation();
-                  e.currentTarget.style.background="";
-                  var fromId=e.dataTransfer.getData("tid");          // UUID — no parseInt
-                  var fromList=e.dataTransfer.getData("tlist");
-                  var fromIdx=parseInt(e.dataTransfer.getData("tidx")); // index — parseInt OK
-                  if(fromList!==list){
-                    if(fromList==="plan")moveToLater(fromId);else moveToPlan(fromId);
-                  } else {reorderTask(fromIdx,idx,list);}
-                }}
-                onTouchStart={function(e){e.currentTarget.dataset.sx=e.touches[0].clientX;e.currentTarget.style.transition="none";}}
-                onTouchMove={function(e){
-                  var dx=e.touches[0].clientX-parseFloat(e.currentTarget.dataset.sx||0);
-                  if(dx<0){e.currentTarget.style.transform="translateX("+Math.max(dx,-80)+"px)";}
-                }}
-                onTouchEnd={function(e){
-                  var el=e.currentTarget;
-                  var tr=el.style.transform;
-                  var dx=tr?parseFloat(tr.replace(/[^-\d.]/g,""))||0:0;
-                  el.style.transition="transform 0.2s";
-                  if(dx<-50){
-                    el.style.transform="translateX(-80px)";
-                    setTimeout(function(){mu({taskDeleteConfirm:{id:tk.id,list:list,text:tk.text}});el.style.transform="";el.style.transition="";},150);
-                  } else {
-                    el.style.transform="";
-                    setTimeout(function(){el.style.transition="";},200);
-                  }
-                }}
-                style={{display:"flex",alignItems:"center",gap:8,padding:"10px 12px",background:card,borderRadius:10,border:"1px solid "+border,cursor:"grab",transition:"background 0.1s",position:"relative",zIndex:1}}
-              >
-                <div data-nodrag="1" onClick={function(){toggleTaskDone(tk.id,list);}} style={{width:20,height:20,borderRadius:6,border:"2px solid "+(tk.done?green:border),background:tk.done?greenBg:"transparent",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",flexShrink:0}}>
-                  {tk.done&&<svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M1.5 5L3.5 7.5L8.5 2" stroke={green} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>}
-                </div>
-                <span onClick={function(){mu({taskPopup:{id:tk.id,list:list,draftText:tk.text,draftDesc:tk.description||"",draftDeadline:tk.deadline||"",draftReminder:tk.reminder||""}});}} style={{flex:1,fontSize:14,color:tk.done?textLight:textMain,textDecoration:tk.done?"line-through":"none",cursor:"pointer",lineHeight:1.4}}>{tk.text}</span>
-                {ui.activeTag===null&&tk.tag&&(function(){var tg=st.tags.find(function(x){return x.id===tk.tag;});return tg?<span style={{fontSize:9,fontWeight:600,color:textSub,background:darkBg,border:"1px solid "+border,borderRadius:8,padding:"1px 6px",flexShrink:0,maxWidth:60,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{tg.name}</span>:null;})()}
-                <ScoreBadge tk={tk}/>
-                <button onClick={function(e){e.stopPropagation();mu({taskPopup:{id:tk.id,list:list,draftText:tk.text,draftDesc:tk.description||"",draftDeadline:tk.deadline||"",draftReminder:tk.reminder||""}});}} title={t.editTask} style={{background:"transparent",border:"none",cursor:"pointer",padding:"2px",flexShrink:0,lineHeight:1}}>
-                  <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M9.5 1.5l2 2-7 7-2.5.5.5-2.5 7-7z" stroke={textLight} strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/></svg>
-                </button>
-                {list==="plan"&&<button onClick={function(){togglePin(tk.id);}} style={{background:"transparent",border:"none",cursor:"pointer",fontSize:14,padding:"2px",flexShrink:0,position:"relative",lineHeight:1,display:"inline-flex",alignItems:"center",justifyContent:"center",width:22,height:22}}>
-                  <span style={{opacity:tk.pinned?0.55:1}}>📌</span>
-                  {tk.pinned&&<span style={{position:"absolute",top:"50%",left:"-2px",right:"-2px",height:"3px",background:"#ef4444",transform:"translateY(-50%) rotate(-40deg)",display:"block",borderRadius:2,pointerEvents:"none",boxShadow:"0 0 0 1px rgba(255,255,255,0.8)"}}/>}
-                </button>}
-                {list==="plan"&&!tk.pinned&&<button onClick={function(){moveToLater(tk.id);}} style={{background:"transparent",border:"none",cursor:"pointer",fontSize:11,color:textLight,padding:"2px 4px",borderRadius:6,flexShrink:0}}>↓</button>}
-                {list==="later"&&<button onClick={function(){moveToPlan(tk.id);}} style={{background:"transparent",border:"none",cursor:"pointer",fontSize:11,color:textLight,padding:"2px 4px",borderRadius:6,flexShrink:0}}>↑</button>}
-              </div>
-              </div>
-            );
-          }
+          var doneTasks=visibleTasks.filter(function(tk){return tk.done;}).map(function(tk){return{tk:tk,list:"plan"};}).concat(visibleLater.filter(function(tk){return tk.done;}).map(function(tk){return{tk:tk,list:"later"};}));
+          var cx={darkBg:darkBg,card:card,border:border,green:green,greenBg:greenBg,textMain:textMain,textLight:textLight,textSub:textSub,red:red,redBg:redBg,redBo:redBo,yellow:yellow,yellowBg:yellowBg,yellowBo:yellowBo,mu:mu,toggleTaskDone:toggleTaskDone,moveToLater:moveToLater,moveToPlan:moveToPlan,reorderTask:reorderTask,togglePin:togglePin,activeTag:ui.activeTag,tags:st.tags,t:t};
           return(
             <div>
               <div style={{display:"flex",gap:6,overflowX:"auto",marginBottom:12,paddingBottom:2}}>
@@ -1083,7 +1046,7 @@ export default function App(){
               {pinnedTasks.length>0&&(
                 <div style={{marginBottom:12}}>
                   <p style={{fontSize:11,fontWeight:700,color:"#f59e0b",margin:"0 0 8px",textTransform:"uppercase",letterSpacing:"0.06em"}}>📌 Pinned</p>
-                  {pinnedTasks.map(function(tk,i){return <TaskRow key={tk.id} tk={tk} list="plan" idx={st.tasks.indexOf(tk)}/>;} )}
+                  {pinnedTasks.map(function(tk,i){return <TaskRow key={tk.id} tk={tk} list="plan" idx={st.tasks.indexOf(tk)} cx={cx}/>;} )}
                 </div>
               )}
               <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8}}>
@@ -1095,7 +1058,7 @@ export default function App(){
                 onDrop={function(e){e.preventDefault();var fromList=e.dataTransfer.getData("tlist");if(fromList==="later"){var fromId=e.dataTransfer.getData("tid");moveToPlan(fromId);}}}
               >
                 {planTasks.length===0&&<p style={{fontSize:13,color:textLight,textAlign:"center",padding:"16px 0"}}>{t.noTasks}</p>}
-                {planTasks.map(function(tk,i){return <TaskRow key={tk.id} tk={tk} list="plan" idx={st.tasks.indexOf(tk)}/>;} )}
+                {planTasks.map(function(tk,i){return <TaskRow key={tk.id} tk={tk} list="plan" idx={st.tasks.indexOf(tk)} cx={cx}/>;} )}
               </div>
               <div style={{marginTop:20,marginBottom:8}}>
                 <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
@@ -1108,7 +1071,7 @@ export default function App(){
                 onDrop={function(e){e.preventDefault();var fromList=e.dataTransfer.getData("tlist");if(fromList==="plan"){var fromId=e.dataTransfer.getData("tid");moveToLater(fromId);}}}
               >
                 {activeLater.length===0&&<p style={{fontSize:13,color:textLight,textAlign:"center",padding:"12px 0"}}>–</p>}
-                {activeLater.map(function(tk,i){return <TaskRow key={tk.id} tk={tk} list="later" idx={st.laterTasks.indexOf(tk)}/>;} )}
+                {activeLater.map(function(tk,i){return <TaskRow key={tk.id} tk={tk} list="later" idx={st.laterTasks.indexOf(tk)} cx={cx}/>;} )}
               </div>
               {doneTasks.length>0&&(
                 <div style={{marginTop:20}}>
@@ -1117,7 +1080,7 @@ export default function App(){
                     <span style={{fontSize:11,fontWeight:600,color:textLight,background:darkBg,border:"1px solid "+border,borderRadius:10,padding:"1px 7px"}}>{doneTasks.length}</span>
                     <span style={{fontSize:11,color:textLight,marginLeft:2}}>{ui.showDone?"▲":"▼"}</span>
                   </button>
-                  {ui.showDone&&doneTasks.map(function(item){return <TaskRow key={item.tk.id} tk={item.tk} list={item.list} idx={item.list==="later"?st.laterTasks.indexOf(item.tk):st.tasks.indexOf(item.tk)}/>;} )}
+                  {ui.showDone&&doneTasks.map(function(item){return <TaskRow key={item.tk.id} tk={item.tk} list={item.list} idx={item.list==="later"?st.laterTasks.indexOf(item.tk):st.tasks.indexOf(item.tk)} cx={cx}/>;} )}
                 </div>
               )}
               {ui.taskPopup&&(function(){
@@ -1166,7 +1129,7 @@ export default function App(){
                     </div>
                     <div style={{display:"flex",gap:10}}>
                       <button onClick={function(){mu({taskPopup:null,taskDeleteConfirm:{id:popTask.id,list:popList,text:popTask.text}});}} style={{flex:1,padding:"12px",borderRadius:12,border:"1.5px solid "+red,background:"transparent",color:red,fontSize:15,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>{t.deleteTask}</button>
-                      <button onClick={function(){saveTaskEdit(popTask.id,{text:draftText,description:draftDesc,deadline:draftDeadline||null,reminder:draftReminder||null},popList);mu({taskPopup:null});}} style={{flex:2,padding:"12px",borderRadius:12,border:"none",background:textMain,color:card,fontSize:15,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>{t.save}</button>
+                      <button onClick={function(){saveTaskEdit(popTask.id,{text:draftText,description:draftDesc||null,deadline:draftDeadline||null,reminder:draftReminder||null},popList);mu({taskPopup:null});}} style={{flex:2,padding:"12px",borderRadius:12,border:"none",background:textMain,color:card,fontSize:15,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>{t.save}</button>
                     </div>
                   </Sheet>
                 );
@@ -1545,10 +1508,10 @@ export default function App(){
             })}
 
             {(function(){var g=st.goals.calories;return(
-              <Card s={{marginBottom:16,cursor:"pointer",padding:"14px 16px"}} onClick={function(){var d=st.calWizData;mu({wiz:d?{step:1,gender:d.gender,W:d.W,H:d.H,A:d.A,goal:d.goal,act:d.act,result:null}:{step:1,gender:null,W:"",H:"",A:"",goal:null,act:null,result:null}});}}>
+              <Card s={{marginBottom:16,cursor:"pointer",padding:"14px 16px"}} onClick={function(){mu({sPanel:"calories",gDraft:Object.assign({},g),gMode:"recommended"});}}>
                 <div style={{display:"flex",alignItems:"center",gap:12}}>
                   <span style={{fontSize:20}}>🥗</span>
-                  <div style={{flex:1}}><p style={{fontSize:14,fontWeight:600,margin:"0 0 1px",color:textMain}}>{t.calories}</p><p style={{fontSize:11,color:textSub,margin:0}}>{t.calcNorm}</p></div>
+                  <div style={{flex:1}}><p style={{fontSize:14,fontWeight:600,margin:"0 0 1px",color:textMain}}>{t.calories}</p><p style={{fontSize:11,color:textSub,margin:0}}>{t.adjustGoal}</p></div>
                   <div style={{textAlign:"right"}}><p style={{fontSize:13,fontWeight:600,color:textMain,margin:0}}>{g.norm} kcal</p><p style={{fontSize:11,color:textSub,margin:0}}>{g.min}–{g.max}</p></div>
                   <span style={{color:textLight,fontSize:16,marginLeft:4}}>›</span>
                 </div>
@@ -1786,6 +1749,42 @@ export default function App(){
                       </div>
                     </div>
                   )}
+                </Sheet>
+              );
+            })()}
+
+            {ui.sPanel==="calories"&&ui.gDraft&&(function(){
+              var d=ui.gDraft;
+              var calStep=50,calMin=500,calMax=5000;
+              function CalRow(rp){
+                var frac=Math.round((d[rp.f]-calMin)/Math.max(1,calMax-calMin)*100);
+                return(
+                  <div style={{marginBottom:16}}>
+                    <div style={{display:"flex",justifyContent:"space-between",marginBottom:6}}><p style={{fontSize:13,fontWeight:600,color:textMain,margin:0}}>{rp.label}</p><p style={{fontSize:13,fontWeight:700,color:textMain,margin:0}}>{d[rp.f]} kcal</p></div>
+                    <input type="range" min={calMin} max={calMax} step={calStep} value={d[rp.f]} onChange={function(e){var v=parseInt(e.target.value),nd=Object.assign({},d);nd[rp.f]=v;mu({gDraft:nd});}} style={{width:"100%",background:"linear-gradient(to right,#111827 "+frac+"%, "+border+" "+frac+"%)"}}/>
+                    <div style={{display:"flex",justifyContent:"space-between",marginTop:4}}><span style={{fontSize:10,color:textLight}}>{calMin}</span><span style={{fontSize:10,color:textLight}}>{calMax}</span></div>
+                  </div>
+                );
+              }
+              return(
+                <Sheet z={900} onClose={function(){mu({sPanel:null,gDraft:null});}}>
+                  <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:20}}>
+                    <span style={{fontSize:28}}>🥗</span>
+                    <p style={{fontSize:17,fontWeight:700,color:textMain,margin:0}}>{t.calories}</p>
+                  </div>
+                  <div style={{background:darkBg,borderRadius:12,padding:"16px",marginBottom:16}}>
+                    <CalRow label={t.minimum} f="min"/>
+                    <CalRow label={t.norm+" ("+t.goalLabel+")"} f="norm"/>
+                    <CalRow label={t.maximum} f="max"/>
+                  </div>
+                  <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8,marginBottom:16}}>
+                    {["min","norm","max"].map(function(f){return(<div key={f} style={{background:f==="norm"?"#111827":darkBg,borderRadius:10,padding:"10px 6px",textAlign:"center",border:"1px solid "+(f==="norm"?"#111827":border)}}><p style={{fontSize:10,color:f==="norm"?"#aaa":textSub,margin:"0 0 2px",textTransform:"uppercase"}}>{f==="min"?t.min:f==="max"?t.max:t.norm}</p><p style={{fontSize:18,fontWeight:800,color:f==="norm"?"#fff":textMain,margin:0}}>{d[f]}</p><p style={{fontSize:10,color:f==="norm"?"#aaa":textSub,margin:0}}>kcal</p></div>);})}
+                  </div>
+                  <div style={{display:"flex",gap:10,marginBottom:10}}>
+                    <Btn onClick={function(){saveGoals("calories",d);}} v="pri" s={{flex:1,padding:"12px",fontSize:15}}>{t.saveGoals}</Btn>
+                    <Btn onClick={function(){mu({sPanel:null,gDraft:null});}}>{t.cancel}</Btn>
+                  </div>
+                  <Btn onClick={function(){mu({sPanel:null,gDraft:null});setTimeout(function(){var cw=st.calWizData;mu({wiz:cw?{step:1,gender:cw.gender,W:cw.W,H:cw.H,A:cw.A,goal:cw.goal,act:cw.act,result:null}:{step:1,gender:null,W:"",H:"",A:"",goal:null,act:null,result:null}});},50);}} s={{width:"100%",padding:"10px",fontSize:13}}>{t.calcNorm} →</Btn>
                 </Sheet>
               );
             })()}
